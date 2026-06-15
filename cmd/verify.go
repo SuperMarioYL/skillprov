@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SuperMarioYL/skillsig/internal/verify"
+	"github.com/SuperMarioYL/skillprov/internal/verify"
 )
 
 // ANSI colors. Kept tiny and local; no dependency just to colorize two words.
@@ -16,7 +16,7 @@ const (
 	colDim   = "\033[2m"
 )
 
-// VerifyCmd implements `skillsig verify <skill-dir>`. It exits non-zero (1) on
+// VerifyCmd implements `skillprov verify <skill-dir>`. It exits non-zero (1) on
 // any rejection, so it drops straight into a CI gate or an install pre-hook.
 func VerifyCmd() *cobra.Command {
 	var noColor bool

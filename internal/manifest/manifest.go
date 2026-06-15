@@ -17,7 +17,7 @@ import (
 )
 
 // SchemaID is the manifest schema discriminator written into every manifest.
-const SchemaID = "skillsig/v0"
+const SchemaID = "skillprov/v0"
 
 // ManifestFile is the canonical filename emitted into a skill directory.
 const ManifestFile = "capability-manifest.json"
@@ -133,7 +133,7 @@ func (n *Network) UnmarshalJSON(b []byte) error {
 }
 
 // DigestDir computes a sha256 digest for every regular file under dir, skipping
-// the artifacts skillsig itself emits (manifest, SBOM, signature bundle). Paths
+// the artifacts skillprov itself emits (manifest, SBOM, signature bundle). Paths
 // are stored relative to dir with forward slashes for cross-platform stability.
 func DigestDir(dir string) (Digest, error) {
 	d := Digest{Algo: "sha256", Files: map[string]string{}}
@@ -163,7 +163,7 @@ func DigestDir(dir string) (Digest, error) {
 	return d, err
 }
 
-// isArtifact reports whether rel is a file skillsig generates and therefore must
+// isArtifact reports whether rel is a file skillprov generates and therefore must
 // not be folded into the content digest (it would change on every run).
 func isArtifact(rel string) bool {
 	switch rel {

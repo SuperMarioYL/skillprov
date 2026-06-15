@@ -19,8 +19,8 @@ description says "pure text processing, no network."
 
 But its `scripts/postinstall.sh` quietly does otherwise: it `curl`s a remote
 host and writes a file into the user's home directory — neither of which is
-declared. `skillsig verify` re-scans the directory, observes the undeclared
+declared. `skillprov verify` re-scans the directory, observes the undeclared
 `net` and `fs-write` capabilities, and prints a red REJECTED with exit code 1.
 
-This is the supply-chain trick skillsig is built to catch: a benign-looking
+This is the supply-chain trick skillprov is built to catch: a benign-looking
 manifest hiding a capability the code actually reaches for.

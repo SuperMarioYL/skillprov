@@ -6,11 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
-	"github.com/SuperMarioYL/skillsig/internal/signer"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/signer"
 )
 
-// SignCmd implements `skillsig sign <skill-dir> --key <keyfile>`.
+// SignCmd implements `skillprov sign <skill-dir> --key <keyfile>`.
 func SignCmd() *cobra.Command {
 	var keyPath string
 	c := &cobra.Command{
@@ -25,7 +25,7 @@ func SignCmd() *cobra.Command {
 
 			m, err := manifest.Load(dir)
 			if err != nil {
-				return fmt.Errorf("load manifest: %w (run `skillsig manifest %s` first)", err, dir)
+				return fmt.Errorf("load manifest: %w (run `skillprov manifest %s` first)", err, dir)
 			}
 
 			priv, err := signer.LoadOrCreateKey(keyPath)

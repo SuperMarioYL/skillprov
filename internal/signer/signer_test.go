@@ -20,7 +20,7 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 		t.Fatalf("LoadOrCreateKey: %v", err)
 	}
 
-	payload := []byte(`{"schema":"skillsig/v0","skill":{"name":"x"}}`)
+	payload := []byte(`{"schema":"skillprov/v0","skill":{"name":"x"}}`)
 	b := Sign(priv, payload)
 
 	if b.Scheme != "ed25519" {
@@ -67,7 +67,7 @@ func TestBundleWriteLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload := []byte("hello-skillsig")
+	payload := []byte("hello-skillprov")
 	if err := Sign(priv, payload).Write(dir); err != nil {
 		t.Fatalf("write bundle: %v", err)
 	}

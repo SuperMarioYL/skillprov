@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
 )
 
 // testdataDir resolves a directory under the repo-root testdata/ tree from any

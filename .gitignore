@@ -1,5 +1,5 @@
 # compiled binary
-/skillsig
+/skillprov
 
 # local signing keys — never commit
 *.key
@@ -7,7 +7,7 @@
 dev.key
 dev.key.pub
 
-# generated per-skill artifacts (re-created by `skillsig manifest` / `sign`)
+# generated per-skill artifacts (re-created by `skillprov manifest` / `sign`)
 capability-manifest.json
 sbom.cdx.json
 bundle.sig

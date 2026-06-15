@@ -1,23 +1,23 @@
 **English** | [简体中文](./README.md)
 
 <p align="center">
-  <img alt="skillsig" src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=34&duration=3200&pause=900&color=E03131&center=true&vCenter=true&width=720&height=70&lines=skillsig;sign+it%2C+diff+it%2C+then+run+it" />
+  <img alt="skillprov" src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=34&duration=3200&pause=900&color=E03131&center=true&vCenter=true&width=720&height=70&lines=skillprov;sign+it%2C+diff+it%2C+then+run+it" />
 </p>
 
 <p align="center">
-  <em>skillsig is the provenance CLI that signs and verifies a Claude Code Skill before it runs.</em>
+  <em>skillprov is the provenance CLI that signs and verifies a Claude Code Skill before it runs.</em>
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
-  <a href="https://github.com/SuperMarioYL/skillsig/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.1.0-E03131.svg"></a>
-  <a href="https://github.com/SuperMarioYL/skillsig/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SuperMarioYL/skillsig/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.1.0-E03131.svg"></a>
+  <a href="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8.svg?logo=go&logoColor=white">
   <img alt="capability-manifest" src="https://img.shields.io/badge/capability--manifest-v0-F08C00.svg">
   <img alt="offline-first" src="https://img.shields.io/badge/signing-offline--first-2F9E44.svg">
 </p>
 
-> **Third-party skills run today with full tool and filesystem access — skillsig makes one verify its signature, diff its declared capabilities, and reject any undeclared over-reach.**
+> **Third-party skills run today with full tool and filesystem access — skillprov makes one verify its signature, diff its declared capabilities, and reject any undeclared over-reach.**
 
 ---
 
@@ -47,7 +47,7 @@ network, and filesystem access — no signature, and nobody has diffed what it
 hold 1,500+ such unsigned skills, pulled in directly by harnesses like
 **Claude Code** and **Codex Cli**.
 
-skillsig adds the missing noun: a **capability manifest** — a declarable,
+skillprov adds the missing noun: a **capability manifest** — a declarable,
 signable description of what a Skill is *allowed* to do, paired with an SBOM of
 what it *contains*. Verification doesn't just check a signature; it statically
 re-scans the skill and diffs the **observed** capabilities against the
@@ -62,21 +62,21 @@ a capability manifest can.
 ## Install &amp; quickstart
 
 ```bash
-go install github.com/SuperMarioYL/skillsig@latest
-# or build locally: git clone … && go build -o skillsig .
+go install github.com/SuperMarioYL/skillprov@latest
+# or build locally: git clone … && go build -o skillprov .
 
 # three steps: emit a manifest → sign it → verify it
-skillsig manifest ./testdata/clean-skill              # capability-manifest.json + SBOM
-skillsig sign     ./testdata/clean-skill --key dev.key # local ed25519 signature → bundle.sig
-skillsig verify   ./testdata/clean-skill              # green PASS: sig valid, observed ⊆ declared
+skillprov manifest ./testdata/clean-skill              # capability-manifest.json + SBOM
+skillprov sign     ./testdata/clean-skill --key dev.key # local ed25519 signature → bundle.sig
+skillprov verify   ./testdata/clean-skill              # green PASS: sig valid, observed ⊆ declared
 ```
 
 Then point the same `verify` at the bundled poisoned sample and reproduce the
 rejection on your own machine:
 
 ```bash
-skillsig manifest ./testdata/poisoned-skill && skillsig sign ./testdata/poisoned-skill --key dev.key
-skillsig verify ./testdata/poisoned-skill             # red REJECTED, exit code 1
+skillprov manifest ./testdata/poisoned-skill && skillprov sign ./testdata/poisoned-skill --key dev.key
+skillprov verify ./testdata/poisoned-skill             # red REJECTED, exit code 1
 ```
 
 <details>
@@ -95,7 +95,7 @@ verifying ./testdata/poisoned-skill
 
 `markdown-prettify` declares `net: false` and `fs-write: false` in its
 frontmatter, but its `postinstall.sh` quietly `curl`s a remote host and writes a
-file into `$HOME` — neither declared. skillsig observes both undeclared
+file into `$HOME` — neither declared. skillprov observes both undeclared
 capabilities, prints a red REJECTED, and exits 1.
 
 </details>
@@ -119,7 +119,7 @@ about 30 seconds end to end:
 
 ```jsonc
 {
-  "schema": "skillsig/v0",
+  "schema": "skillprov/v0",
   "skill":  { "name": "weather-lookup", "version": "1.0.0", "entry": "scripts/lookup.sh" },
   "digest": { "algo": "sha256", "files": { "SKILL.md": "…", "scripts/lookup.sh": "…" } },
   "capabilities": {
@@ -144,7 +144,7 @@ literal string `"none"`.
 One Go binary, three subcommands, no daemon and no server:
 
 ```
-skillsig (one binary)
+skillprov (one binary)
  ├─ manifest → walk the dir, sha256 every file, scan for capabilities → capability-manifest.json + SBOM
  ├─ sign     → ed25519-sign the canonical manifest with a local key → bundle.sig (fully offline)
  └─ verify   → recompute the content lock → check the signature → diff declared vs observed → exit code
@@ -152,20 +152,20 @@ skillsig (one binary)
 
 | Command | What it does |
 | --- | --- |
-| `skillsig manifest <dir>` | Scans the skill dir, emits the capability manifest + SBOM, prints a declared-vs-observed table |
-| `skillsig sign <dir> --key <keyfile>` | ed25519-signs the canonical manifest into `bundle.sig` (key auto-generated if absent) |
-| `skillsig verify <dir>` | Three-stage check — content integrity → signature → capability conformance; any failure → REJECTED, exit 1 |
+| `skillprov manifest <dir>` | Scans the skill dir, emits the capability manifest + SBOM, prints a declared-vs-observed table |
+| `skillprov sign <dir> --key <keyfile>` | ed25519-signs the canonical manifest into `bundle.sig` (key auto-generated if absent) |
+| `skillprov verify <dir>` | Three-stage check — content integrity → signature → capability conformance; any failure → REJECTED, exit 1 |
 
 ---
 
 ## A signature isn't enough
 
 A signing tool proves "these bytes weren't changed." It can't prove "this Skill
-doesn't over-reach." The layer skillsig adds is the **declared-vs-observed
+doesn't over-reach." The layer skillprov adds is the **declared-vs-observed
 capability diff**. Here's an honest comparison — including where the other tools
 are genuinely stronger:
 
-| Capability | skillsig | cosign (signs blobs) | syft (lists contents) |
+| Capability | skillprov | cosign (signs blobs) | syft (lists contents) |
 | --- | :---: | :---: | :---: |
 | Cryptographically sign an artifact | ✓ | ✓ | — |
 | List shipped files / SBOM | ✓ | — | ✓ (more thorough) |
@@ -173,8 +173,8 @@ are genuinely stronger:
 | Reject undeclared over-reach | ✓ | — | — |
 | Mature keyless / transparency-log ecosystem | planned | ✓ (more mature) | — |
 
-cosign's keyless + Rekor ecosystem is far more mature than skillsig's, and syft's
-SBOMs are more comprehensive. skillsig doesn't compete with either — it adds the
+cosign's keyless + Rekor ecosystem is far more mature than skillprov's, and syft's
+SBOMs are more comprehensive. skillprov doesn't compete with either — it adds the
 noun neither has: the **capability manifest**, and the rejection it drives.
 
 ---
@@ -186,7 +186,7 @@ noun neither has: the **capability manifest**, and the rejection it drives.
 - [x] **m3** — verify, diff declared vs observed capabilities, reject undeclared over-reach
 - [ ] cosign keyless (Fulcio / public Rekor) as an opt-in signing path
 - [ ] Finer-grained capability detection (stronger per-language heuristics / AST)
-- [ ] A `skillsig verify` badge for skill-catalog listings
+- [ ] A `skillprov verify` badge for skill-catalog listings
 - [ ] Example pre-hook integration for **Claude Code** / **Codex Cli** install flows
 
 ---
@@ -195,7 +195,7 @@ noun neither has: the **capability manifest**, and the rejection it drives.
 
 v0.1 draws these lines explicitly so it doesn't over-promise:
 
-- **No runtime sandbox** — skillsig declares + verifies; it does not constrain the skill's execution.
+- **No runtime sandbox** — skillprov declares + verifies; it does not constrain the skill's execution.
 - No web UI / dashboard — CLI only.
 - No hosted catalog badge / registry — no server in v0.1.
 - No multi-signer / threshold / org-policy trust roots.
@@ -211,10 +211,10 @@ capability-detection heuristic? Open an issue and let's talk.
 ## Share this
 
 ```
-skillsig — sign and verify a Claude Code Skill before it runs.
+skillprov — sign and verify a Claude Code Skill before it runs.
 A capability manifest rejects any undeclared net/fs over-reach,
 even in a signed skill. One Go binary, offline-first.
-https://github.com/SuperMarioYL/skillsig
+https://github.com/SuperMarioYL/skillprov
 ```
 
 <p align="center"><sub><a href="./LICENSE">MIT</a> © 2026 SuperMarioYL</sub></p>

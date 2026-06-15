@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
-	"github.com/SuperMarioYL/skillsig/internal/sbom"
-	"github.com/SuperMarioYL/skillsig/internal/scan"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/sbom"
+	"github.com/SuperMarioYL/skillprov/internal/scan"
 )
 
-// ManifestCmd implements `skillsig manifest <skill-dir>`.
+// ManifestCmd implements `skillprov manifest <skill-dir>`.
 func ManifestCmd() *cobra.Command {
 	var showObserved bool
 	c := &cobra.Command{

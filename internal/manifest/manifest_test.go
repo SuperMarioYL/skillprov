@@ -48,7 +48,7 @@ func copyTestSkill(t *testing.T, name string) string {
 	return dst
 }
 
-// DigestDir must hash every shipped file and skip skillsig's own artifacts.
+// DigestDir must hash every shipped file and skip skillprov's own artifacts.
 func TestDigestDir_SkipsArtifacts(t *testing.T) {
 	dir := copyTestSkill(t, "clean-skill")
 

@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/SuperMarioYL/skillsig/schema/capability-manifest.v0.schema.json",
-  "title": "skillsig capability manifest v0",
+  "$id": "https://github.com/SuperMarioYL/skillprov/schema/capability-manifest.v0.schema.json",
+  "title": "skillprov capability manifest v0",
   "description": "A declared, signable description of what an installable agent skill is allowed to do, paired with a content digest of the files it ships.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "skill", "digest", "capabilities", "sbom_ref"],
   "properties": {
     "schema": {
-      "const": "skillsig/v0"
+      "const": "skillprov/v0"
     },
     "skill": {
       "type": "object",

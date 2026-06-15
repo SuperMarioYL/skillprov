@@ -81,7 +81,7 @@ func Build(skillName, skillVersion string, fileDigests map[string]string) *BOM {
 		Metadata: Metadata{
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
 			Tools: []Tool{
-				{Vendor: "skillsig", Name: "skillsig", Version: "0.1.0"},
+				{Vendor: "skillprov", Name: "skillprov", Version: "0.1.0"},
 			},
 			Component: Component{
 				Type:    "application",

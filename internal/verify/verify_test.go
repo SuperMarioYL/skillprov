@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
-	"github.com/SuperMarioYL/skillsig/internal/sbom"
-	"github.com/SuperMarioYL/skillsig/internal/scan"
-	"github.com/SuperMarioYL/skillsig/internal/signer"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/sbom"
+	"github.com/SuperMarioYL/skillprov/internal/scan"
+	"github.com/SuperMarioYL/skillprov/internal/signer"
 )
 
 // stageSignedSkill copies a testdata skill into a temp dir and runs the real

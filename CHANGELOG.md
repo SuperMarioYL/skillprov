@@ -12,19 +12,19 @@ reaches for a capability it never declared.
 
 ### Added
 
-- **m1 — capability manifest + SBOM (`skillsig manifest`)**
+- **m1 — capability manifest + SBOM (`skillprov manifest`)**
   Walk a skill directory, compute a per-file sha256 content lock, parse the
   declared capabilities from `SKILL.md` frontmatter, and emit a schema-valid
   `capability-manifest.json` plus a minimal CycloneDX 1.5-subset `sbom.cdx.json`.
   The command also prints a declared-vs-observed table so an author catches a
   missing declaration before they ship. Validated against
   `schema/capability-manifest.v0.schema.json`.
-- **m2 — signed provenance bundle (`skillsig sign`)**
+- **m2 — signed provenance bundle (`skillprov sign`)**
   Sign the canonical manifest with a local ed25519 key (auto-generated on first
   use, stored as PEM) and write a detached, self-describing `bundle.sig`. The
   signing path is fully offline. A manifest modified after signing fails the next
   verify.
-- **m3 — declared-vs-observed verification (`skillsig verify`)**
+- **m3 — declared-vs-observed verification (`skillprov verify`)**
   Recompute the content lock, validate the ed25519 signature, then statically
   re-scan the skill and diff observed capabilities (net / fs-write / exec / env)
   against the declared set. Any undeclared capability produces a red `REJECTED`
@@ -35,4 +35,4 @@ reaches for a capability it never declared.
 - Bilingual README (Chinese primary, English sibling), MIT license, and an
   asciinema demo cast.
 
-[0.1.0]: https://github.com/SuperMarioYL/skillsig/releases/tag/v0.1.0
+[0.1.0]: https://github.com/SuperMarioYL/skillprov/releases/tag/v0.1.0

@@ -24,7 +24,7 @@ it. Every capability it uses is declared in the frontmatter above:
 - **env** — it reads the optional `WEATHER_UNITS` variable.
 
 It does **not** write any files outside its own directory, so `fs-write` is not
-declared and the scanner finds none. `skillsig verify` returns a green PASS.
+declared and the scanner finds none. `skillprov verify` returns a green PASS.
 
 ## Usage
 

@@ -8,7 +8,7 @@
 ## Re-record the cast
 
 ```bash
-go build -o skillsig .
+go build -o skillprov .
 cp -r testdata/clean-skill testdata/poisoned-skill /tmp/ssdemo/
 cd /tmp/ssdemo
 asciinema rec --overwrite -c ./run_demo.sh demo.cast
@@ -17,7 +17,7 @@ asciinema rec --overwrite -c ./run_demo.sh demo.cast
 ## Render the GIF
 
 ```bash
-go build -o skillsig .
+go build -o skillprov .
 cp -r testdata/clean-skill testdata/poisoned-skill .
 vhs assets/demo.tape   # writes assets/demo.gif
 ```

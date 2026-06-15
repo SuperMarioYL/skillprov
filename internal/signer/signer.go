@@ -38,8 +38,8 @@ type Bundle struct {
 
 // privPEMType / pubPEMType label the PEM blocks for the local key file.
 const (
-	privPEMType = "SKILLSIG ED25519 PRIVATE KEY"
-	pubPEMType  = "SKILLSIG ED25519 PUBLIC KEY"
+	privPEMType = "SKILLPROV ED25519 PRIVATE KEY"
+	pubPEMType  = "SKILLPROV ED25519 PUBLIC KEY"
 )
 
 // LoadOrCreateKey loads an ed25519 private key from keyPath, generating and
@@ -55,7 +55,7 @@ func LoadOrCreateKey(keyPath string) (ed25519.PrivateKey, error) {
 	}
 	blk, _ := pem.Decode(b)
 	if blk == nil || blk.Type != privPEMType {
-		return nil, fmt.Errorf("%s: not a skillsig ed25519 private key", keyPath)
+		return nil, fmt.Errorf("%s: not a skillprov ed25519 private key", keyPath)
 	}
 	if len(blk.Bytes) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%s: malformed private key length %d", keyPath, len(blk.Bytes))

@@ -1,4 +1,4 @@
-module github.com/SuperMarioYL/skillsig
+module github.com/SuperMarioYL/skillprov
 
 go 1.24
 

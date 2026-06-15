@@ -1,4 +1,4 @@
-// Package verify performs the three-stage check that defines skillsig's value:
+// Package verify performs the three-stage check that defines skillprov's value:
 //
 //  1. content integrity — recompute every file's sha256 and compare against the
 //     digests recorded in the signed manifest;
@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
-	"github.com/SuperMarioYL/skillsig/internal/scan"
-	"github.com/SuperMarioYL/skillsig/internal/signer"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/scan"
+	"github.com/SuperMarioYL/skillprov/internal/signer"
 )
 
 // Verdict is the result of verifying a skill directory.
@@ -38,7 +38,7 @@ func Run(dir string) (*Verdict, error) {
 
 	m, err := manifest.Load(dir)
 	if err != nil {
-		return nil, fmt.Errorf("load manifest: %w (run `skillsig manifest` first)", err)
+		return nil, fmt.Errorf("load manifest: %w (run `skillprov manifest` first)", err)
 	}
 
 	// Stage 1: content integrity.
@@ -107,7 +107,7 @@ func checkSignature(dir string, m *manifest.CapabilityManifest, v *Verdict) {
 	bundle, err := signer.LoadBundle(dir)
 	if err != nil {
 		v.Pass = false
-		v.Reasons = append(v.Reasons, "signature bundle missing or unreadable (run `skillsig sign`)")
+		v.Reasons = append(v.Reasons, "signature bundle missing or unreadable (run `skillprov sign`)")
 		v.Checks = append(v.Checks, "signature: NO BUNDLE")
 		return
 	}

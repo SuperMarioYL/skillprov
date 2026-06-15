@@ -20,10 +20,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/SuperMarioYL/skillsig/internal/manifest"
+	"github.com/SuperMarioYL/skillprov/internal/manifest"
 )
 
-// Capability is one of the four capability classes skillsig tracks.
+// Capability is one of the four capability classes skillprov tracks.
 type Capability string
 
 const (
@@ -66,13 +66,13 @@ type Result struct {
 	observedHosts []string
 }
 
-// skillFrontmatter is the subset of SKILL.md frontmatter skillsig reads.
+// skillFrontmatter is the subset of SKILL.md frontmatter skillprov reads.
 type skillFrontmatter struct {
 	Name         string `yaml:"name"`
 	Version      string `yaml:"version"`
 	Entry        string `yaml:"entry"`
 	AllowedTools string `yaml:"allowed-tools"`
-	// Capabilities is skillsig's optional explicit declaration block. Authors
+	// Capabilities is skillprov's optional explicit declaration block. Authors
 	// who want precise control over the manifest use this rather than relying on
 	// allowed-tools inference.
 	Capabilities *declaredCaps `yaml:"capabilities"`
@@ -159,7 +159,7 @@ func Scan(dir string) (*Result, error) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		// Never scan skillsig's own emitted artifacts.
+		// Never scan skillprov's own emitted artifacts.
 		switch rel {
 		case manifest.ManifestFile, manifest.SBOMFile, "bundle.sig":
 			return nil
@@ -362,7 +362,7 @@ func (r *Result) ObservedHosts() []string {
 }
 
 // DeclaredCapabilities builds a manifest.Capabilities block from what the skill
-// DECLARED in its SKILL.md frontmatter. This is what `skillsig manifest` writes:
+// DECLARED in its SKILL.md frontmatter. This is what `skillprov manifest` writes:
 // the author's stated permission set, which `verify` later diffs against the
 // observed scan. When the author left a class undeclared, the corresponding
 // field is empty (and network resolves to "none").
@@ -400,7 +400,7 @@ func (r *Result) DeclaredCapabilities() manifest.Capabilities {
 }
 
 // ObservedCapabilities builds a manifest.Capabilities block reflecting what the
-// static scan actually FOUND. `skillsig manifest` shows this to the author so
+// static scan actually FOUND. `skillprov manifest` shows this to the author so
 // they can confirm/declare it.
 func (r *Result) ObservedCapabilities() manifest.Capabilities {
 	c := manifest.Capabilities{}

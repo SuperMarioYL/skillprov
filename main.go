@@ -1,4 +1,4 @@
-// Command skillsig provides software-supply-chain provenance for installable
+// Command skillprov provides software-supply-chain provenance for installable
 // agent skills: it builds a capability manifest + SBOM for a skill directory,
 // signs it with a local ed25519 key, and verifies a downloaded skill by diffing
 // the capabilities it declares against the ones a static scan actually observes.
@@ -10,14 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/SuperMarioYL/skillsig/cmd"
+	"github.com/SuperMarioYL/skillprov/cmd"
 )
 
 func main() {
 	root := &cobra.Command{
-		Use:           "skillsig",
+		Use:           "skillprov",
 		Short:         "Provenance + capability attestation for installable agent skills",
-		Long: "skillsig signs and verifies installable agent skills. It emits a capability\n" +
+		Long: "skillprov signs and verifies installable agent skills. It emits a capability\n" +
 			"manifest (declared vs statically-observed net / fs-write / exec / env), signs it\n" +
 			"with a local ed25519 key, and rejects any skill that reaches for a capability it\n" +
 			"never declared.",
