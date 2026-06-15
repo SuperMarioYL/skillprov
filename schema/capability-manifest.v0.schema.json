@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SuperMarioYL/skillsig/schema/capability-manifest.v0.schema.json",
+  "title": "skillsig capability manifest v0",
+  "description": "A declared, signable description of what an installable agent skill is allowed to do, paired with a content digest of the files it ships.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "skill", "digest", "capabilities", "sbom_ref"],
+  "properties": {
+    "schema": {
+      "const": "skillsig/v0"
+    },
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "entry"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string" },
+        "entry": { "type": "string" }
+      }
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algo", "files"],
+      "properties": {
+        "algo": { "const": "sha256" },
+        "files": {
+          "type": "object",
+          "description": "Map of relative file path to lowercase hex sha256.",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filesystem", "network", "exec", "env"],
+      "properties": {
+        "filesystem": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "read": { "type": "array", "items": { "type": "string" } },
+            "write": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "network": {
+          "oneOf": [
+            { "const": "none" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["hosts"],
+              "properties": {
+                "hosts": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                }
+              }
+            }
+          ]
+        },
+        "exec": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "env": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sbom_ref": {
+      "type": "string",
+      "description": "Relative path to the CycloneDX-subset SBOM that accompanies this manifest."
+    }
+  }
+}

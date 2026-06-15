@@ -1,0 +1,34 @@
+# compiled binary
+/skillsig
+
+# local signing keys — never commit
+*.key
+*.key.pub
+dev.key
+dev.key.pub
+
+# generated per-skill artifacts (re-created by `skillsig manifest` / `sign`)
+capability-manifest.json
+sbom.cdx.json
+bundle.sig
+
+# rendered demo output (regenerate from assets/demo.tape)
+assets/demo.gif
+
+# editor / OS
+.DS_Store
+*.swp
+
+# agent config
+.claude/
+CLAUDE.md
+
+# build scratch
+PUBLISH_BLOCKED.md
+BUILD_SETUP_NEXT_STEPS.md
+DRIFT_REPORT.md
+GIT_AUTHOR_DRIFT.md
+.spawn.*
+.builder_*
+.build_metadata*
+.stage_*
