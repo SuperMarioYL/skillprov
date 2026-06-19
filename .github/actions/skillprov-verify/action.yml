@@ -1,0 +1,114 @@
+name: "skillprov verify"
+description: >-
+  Gate a skill (or a whole skill catalog) on skillprov verify. Installs the
+  released skillprov binary and runs `skillprov verify` over one or more skill
+  directories; the step fails (exit 1) the moment any skill reaches for a
+  capability — including a network host or env var — it never declared.
+author: "SuperMarioYL"
+
+branding:
+  icon: "shield"
+  color: "red"
+
+inputs:
+  skill-dir:
+    description: >-
+      Path to the skill directory to verify (the directory that contains
+      SKILL.md and a signed capability-manifest.json). Provide either this or
+      `skill-dirs`.
+    required: false
+    default: ""
+  skill-dirs:
+    description: >-
+      Newline- or space-separated list of skill directories to verify in one
+      step. Use this to gate an entire catalog. Overrides `skill-dir` when set.
+    required: false
+    default: ""
+  version:
+    description: >-
+      skillprov release version to install, e.g. v0.2.0. Use "latest" to resolve
+      the most recent published release.
+    required: false
+    default: "latest"
+  no-color:
+    description: "Disable ANSI color in the verify output (true/false)."
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install skillprov
+      shell: bash
+      env:
+        SKILLPROV_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        repo="SuperMarioYL/skillprov"
+
+        version="${SKILLPROV_VERSION}"
+        if [ "${version}" = "latest" ] || [ -z "${version}" ]; then
+          version="$(gh api "repos/${repo}/releases/latest" --jq '.tag_name')"
+        fi
+        echo "Installing skillprov ${version}"
+
+        os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        case "${os}" in
+          linux)  goos="linux" ;;
+          darwin) goos="darwin" ;;
+          *) echo "unsupported OS: ${os}" >&2; exit 1 ;;
+        esac
+        arch="$(uname -m)"
+        case "${arch}" in
+          x86_64|amd64) goarch="amd64" ;;
+          arm64|aarch64) goarch="arm64" ;;
+          *) echo "unsupported arch: ${arch}" >&2; exit 1 ;;
+        esac
+
+        ver="${version#v}"
+        asset="skillprov_${ver}_${goos}_${goarch}.tar.gz"
+        tmp="$(mktemp -d)"
+        gh release download "${version}" --repo "${repo}" --pattern "${asset}" --dir "${tmp}"
+        tar -xzf "${tmp}/${asset}" -C "${tmp}"
+
+        install_dir="${HOME}/.local/bin"
+        mkdir -p "${install_dir}"
+        mv "${tmp}/skillprov" "${install_dir}/skillprov"
+        chmod +x "${install_dir}/skillprov"
+        echo "${install_dir}" >> "${GITHUB_PATH}"
+
+    - name: Run skillprov verify
+      shell: bash
+      env:
+        SKILL_DIR: ${{ inputs.skill-dir }}
+        SKILL_DIRS: ${{ inputs.skill-dirs }}
+        NO_COLOR: ${{ inputs.no-color }}
+      run: |
+        set -uo pipefail
+
+        dirs="${SKILL_DIRS}"
+        if [ -z "${dirs// }" ]; then
+          dirs="${SKILL_DIR}"
+        fi
+        if [ -z "${dirs// }" ]; then
+          echo "::error::provide skill-dir or skill-dirs" >&2
+          exit 1
+        fi
+
+        flag=""
+        if [ "${NO_COLOR}" = "true" ]; then
+          flag="--no-color"
+        fi
+
+        rc=0
+        # shellcheck disable=SC2086
+        for d in ${dirs}; do
+          echo "::group::skillprov verify ${d}"
+          if ! skillprov verify ${flag} "${d}"; then
+            echo "::error::skillprov verify FAILED for ${d}"
+            rc=1
+          fi
+          echo "::endgroup::"
+        done
+        exit "${rc}"

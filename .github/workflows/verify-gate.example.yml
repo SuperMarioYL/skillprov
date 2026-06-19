@@ -1,0 +1,66 @@
+# Example: gate skill PRs with the skillprov composite action.
+#
+# Copy this into a skill catalog's .github/workflows/ to make every PR run
+# `skillprov verify` over the skills it touches. The job goes RED the instant a
+# skill reaches for an undeclared capability — including an off-allowlist network
+# host or env var (skillprov v0.2+) — and GREEN when the declared and observed
+# capability sets match.
+#
+# This file is named *.example.yml so it does not run in this repo; rename it to
+# verify-gate.yml in the consuming catalog to activate it.
+name: verify-gate (example)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The honest skill is signed and in-policy: the gate must pass.
+  clean-passes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sign the clean skill (catalogs ship pre-signed; here we sign in CI)
+        run: |
+          go build -o skillprov .
+          ./skillprov manifest testdata/clean-skill
+          ./skillprov sign testdata/clean-skill
+      - name: Gate on skillprov verify
+        uses: SuperMarioYL/skillprov/.github/actions/skillprov-verify@v0.2.0
+        with:
+          skill-dir: testdata/clean-skill
+          version: v0.2.0
+
+  # The poisoned + host-mismatch skills reach for undeclared capabilities: the
+  # gate MUST fail. `continue-on-error` lets the demo assert the red outcome
+  # without failing the whole example run.
+  poisoned-fails:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sign the offending skills
+        run: |
+          go build -o skillprov .
+          for d in testdata/poisoned-skill testdata/host-mismatch; do
+            ./skillprov manifest "$d"
+            ./skillprov sign "$d"
+          done
+      - name: Gate on skillprov verify (expected to fail)
+        id: gate
+        continue-on-error: true
+        uses: SuperMarioYL/skillprov/.github/actions/skillprov-verify@v0.2.0
+        with:
+          skill-dirs: |
+            testdata/poisoned-skill
+            testdata/host-mismatch
+          version: v0.2.0
+      - name: Assert the gate went red
+        run: |
+          if [ "${{ steps.gate.outcome }}" = "success" ]; then
+            echo "::error::expected skillprov verify to REJECT the poisoned skills"
+            exit 1
+          fi
+          echo "gate correctly rejected the undeclared-capability skills"
