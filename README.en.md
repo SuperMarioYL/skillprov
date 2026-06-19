@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
-  <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.1.0-E03131.svg"></a>
+  <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.2.0-E03131.svg"></a>
   <a href="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8.svg?logo=go&logoColor=white">
   <img alt="capability-manifest" src="https://img.shields.io/badge/capability--manifest-v0-F08C00.svg">
@@ -30,6 +30,7 @@
 - [What a capability manifest looks like](#what-a-capability-manifest-looks-like)
 - [How it works](#how-it-works)
 - [A signature isn't enough](#a-signature-isnt-enough)
+- [CI gate (GitHub Action)](#ci-gate-github-action)
 - [Roadmap](#roadmap)
 - [Out of scope](#out-of-scope)
 - [License &amp; contributing](#license--contributing)
@@ -70,7 +71,7 @@ a capability manifest can.
   </picture>
 </p>
 
-The whole pipeline is one Go binary — fully offline, no daemon, no server. `manifest` walks the directory, computes a per-file sha256 content lock, scans the **observed** capabilities, and writes `capability-manifest.json` plus a CycloneDX-subset SBOM; `sign` ed25519-signs the canonical manifest into `bundle.sig`. `verify` is a three-stage gate: recompute the content lock → check the signature → diff the **declared** capabilities against the **statically observed** ones — and the moment it observes one undeclared over-reach, it returns REJECTED with exit code 1.
+The whole pipeline is one Go binary — fully offline, no daemon, no server. `manifest` walks the directory, computes a per-file sha256 content lock, scans the **observed** capabilities, and writes `capability-manifest.json` plus a CycloneDX-subset SBOM; `sign` ed25519-signs the canonical manifest into `bundle.sig`. `verify` is a three-stage gate: recompute the content lock → check the signature → diff the **declared** capabilities against the **statically observed** ones at value granularity — and the moment it observes one undeclared over-reach, it returns REJECTED with exit code 1. As of v0.2 an observed network **host** or **env var** outside the declared allowlist is itself an undeclared capability: declaring `api.github.com` no longer permits a quiet fetch to `evil.host`, and declaring `env-vars: [TZ]` no longer permits reading `$AWS_SECRET_ACCESS_KEY`.
 
 ---
 
@@ -195,15 +196,42 @@ noun neither has: the **capability manifest**, and the rejection it drives.
 
 ---
 
+## CI gate (GitHub Action)
+
+`skillprov verify` already exits 1 on rejection, so it drops straight into a CI gate.
+As of v0.2 the repo ships a **composite GitHub Action** (`.github/actions/skillprov-verify`)
+that installs the released binary and runs `verify` over one or more skill directories —
+the step goes red the moment any skill reaches for a capability it never declared,
+including an off-allowlist network host or env var.
+
+Drop it into a skill catalog so every PR is gated in one step:
+
+```yaml
+- name: skillprov verify gate
+  uses: SuperMarioYL/skillprov/.github/actions/skillprov-verify@v0.2.0
+  with:
+    skill-dirs: |
+      skills/weather-lookup
+      skills/markdown-prettify
+    version: v0.2.0
+```
+
+A full runnable example lives in [`.github/workflows/verify-gate.example.yml`](./.github/workflows/verify-gate.example.yml):
+clean-skill passes (green); poisoned-skill and host-mismatch are rejected (red).
+
+---
+
 ## Roadmap
 
 - [x] **m1** — scan a skill dir, emit `capability-manifest.json` + a CycloneDX-subset SBOM
 - [x] **m2** — sign the manifest with a local ed25519 key, produce `bundle.sig`
 - [x] **m3** — verify, diff declared vs observed capabilities, reject undeclared over-reach
+- [x] **m4** (v0.2) — enforce the declared **network-host allowlist** at value level: an off-allowlist host is rejected and named
+- [x] **m5** (v0.2) — enforce the declared **env-var allowlist** at value level: an undeclared env var is rejected and named
+- [x] **m6** (v0.2) — a reusable [composite GitHub Action](#ci-gate-github-action) that turns `skillprov verify` into a one-step PR gate
 - [ ] cosign keyless (Fulcio / public Rekor) as an opt-in signing path
 - [ ] Finer-grained capability detection (stronger per-language heuristics / AST)
-- [ ] A `skillprov verify` badge for skill-catalog listings
-- [ ] Example pre-hook integration for **Claude Code** / **Codex Cli** install flows
+- [ ] Per-exec-argument allowlisting (declare which commands may run) — class-level exec stays in v0.2, arg-level deferred to v0.3
 
 ---
 
@@ -213,7 +241,8 @@ v0.1 draws these lines explicitly so it doesn't over-promise:
 
 - **No runtime sandbox** — skillprov declares + verifies; it does not constrain the skill's execution.
 - No web UI / dashboard — CLI only.
-- No hosted catalog badge / registry — no server in v0.1.
+- No hosted registry / server — verification stays fully offline (v0.2 adds a composite GitHub Action to wire the gate into CI, still serverless).
+- No per-exec-argument allowlisting — exec stays class-level in v0.2; arg-level is deferred to v0.3.
 - No multi-signer / threshold / org-policy trust roots.
 - A static scan catches the honest-mistake and naive-poison cases (the AUR class), but not deliberately obfuscated capabilities — it raises the floor, it isn't a sandbox.
 
