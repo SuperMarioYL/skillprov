@@ -116,6 +116,86 @@ func TestExplicitFalseBeatsInference(t *testing.T) {
 	}
 }
 
+// v0.2 m4: the scanner must record observed network hosts with file:line so
+// verify can name an off-allowlist host. The host-mismatch fixture reaches both
+// the declared api.github.com and the undeclared collect.evil.host.
+func TestScanRecordsObservedHostHits(t *testing.T) {
+	res, err := Scan(testdataDir(t, "host-mismatch"))
+	if err != nil {
+		t.Fatalf("scan host-mismatch: %v", err)
+	}
+	hits := res.ObservedHostHits()
+	if len(hits) == 0 {
+		t.Fatalf("expected observed host hits, got none")
+	}
+	want := map[string]bool{"api.github.com": false, "collect.evil.host": false}
+	for _, h := range hits {
+		if _, ok := want[h.Host]; ok {
+			want[h.Host] = true
+			if h.File == "" || h.Line == 0 {
+				t.Errorf("host hit %q lacks file:line: %+v", h.Host, h)
+			}
+		}
+	}
+	for host, seen := range want {
+		if !seen {
+			t.Errorf("expected to observe host %q, hits=%+v", host, hits)
+		}
+	}
+}
+
+// v0.2 m5: the scanner must record observed env-var NAMES with file:line, and it
+// must NOT record shell builtins like HOME. The env-leak fixture reads the
+// declared TZ and the undeclared AWS_SECRET_ACCESS_KEY.
+func TestScanRecordsObservedEnvHits(t *testing.T) {
+	res, err := Scan(testdataDir(t, "env-leak"))
+	if err != nil {
+		t.Fatalf("scan env-leak: %v", err)
+	}
+	hits := res.ObservedEnvHits()
+	if len(hits) == 0 {
+		t.Fatalf("expected observed env hits, got none")
+	}
+	names := map[string]bool{}
+	for _, h := range hits {
+		names[h.Name] = true
+		if h.File == "" || h.Line == 0 {
+			t.Errorf("env hit %q lacks file:line: %+v", h.Name, h)
+		}
+	}
+	if !names["TZ"] {
+		t.Errorf("expected to observe declared env var TZ, names=%v", names)
+	}
+	if !names["AWS_SECRET_ACCESS_KEY"] {
+		t.Errorf("expected to observe undeclared env var AWS_SECRET_ACCESS_KEY, names=%v", names)
+	}
+	if names["HOME"] || names["PATH"] {
+		t.Errorf("shell builtin env vars must be ignored, names=%v", names)
+	}
+}
+
+// envNamesIn must pull bare names from shell forms and getenv-style API calls.
+func TestEnvNamesIn(t *testing.T) {
+	cases := []struct {
+		line string
+		want []string
+	}{
+		{`x="${AWS_SECRET_ACCESS_KEY:-}"`, []string{"AWS_SECRET_ACCESS_KEY"}},
+		{`echo $TZ and ${GITHUB_REPO}`, []string{"TZ", "GITHUB_REPO"}},
+		{`v = os.getenv("API_TOKEN")`, []string{"API_TOKEN"}},
+		{`const k = process.env.SECRET_KEY`, []string{"SECRET_KEY"}},
+		{`val = ENV["DB_PASSWORD"]`, []string{"DB_PASSWORD"}},
+	}
+	for _, tc := range cases {
+		got := envNamesIn(tc.line)
+		for _, w := range tc.want {
+			if !containsStr(got, w) {
+				t.Errorf("envNamesIn(%q) = %v, missing %q", tc.line, got, w)
+			}
+		}
+	}
+}
+
 // SortStrings must dedupe, drop empties, and sort.
 func TestSortStrings(t *testing.T) {
 	got := manifest.SortStrings([]string{"b", "", "a", "b", "c", "a"})

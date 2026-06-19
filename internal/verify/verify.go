@@ -30,6 +30,13 @@ type Verdict struct {
 	// Undeclared lists the capabilities observed but not declared, with their
 	// triggering evidence — this is what drives the headline REJECTED message.
 	Undeclared map[scan.Capability][]scan.Evidence
+
+	// UndeclaredHosts lists network hosts the skill reached that fall outside its
+	// declared host allowlist (value-level net enforcement, v0.2).
+	UndeclaredHosts []scan.HostHit
+	// UndeclaredEnv lists env vars the skill read that fall outside its declared
+	// env allowlist (value-level env enforcement, v0.2).
+	UndeclaredEnv []scan.EnvHit
 }
 
 // Run executes all three verification stages over dir.
@@ -143,7 +150,13 @@ func checkCapabilities(dir string, m *manifest.CapabilityManifest, v *Verdict) e
 		}
 	}
 
-	if len(undeclaredList) == 0 {
+	// Value-level enforcement (v0.2): even when the net / env CLASS is declared, a
+	// finite host or env-var allowlist must contain every observed host / env var.
+	// Declaring api.github.com does not permit a quiet fetch to evil.host.
+	checkHostAllowlist(m, res, v)
+	checkEnvAllowlist(m, res, v)
+
+	if len(undeclaredList) == 0 && len(v.UndeclaredHosts) == 0 && len(v.UndeclaredEnv) == 0 {
 		v.Checks = append(v.Checks, "capabilities: observed set is a subset of declared")
 		return nil
 	}
@@ -155,6 +168,16 @@ func checkCapabilities(dir string, m *manifest.CapabilityManifest, v *Verdict) e
 		v.Reasons = append(v.Reasons, fmt.Sprintf(
 			"undeclared capability %q observed at %s:%d  ->  %s",
 			c, first.File, first.Line, first.Snippet))
+	}
+	for _, h := range v.UndeclaredHosts {
+		v.Reasons = append(v.Reasons, fmt.Sprintf(
+			"undeclared network host %q observed at %s:%d (not in declared host allowlist)",
+			h.Host, h.File, h.Line))
+	}
+	for _, e := range v.UndeclaredEnv {
+		v.Reasons = append(v.Reasons, fmt.Sprintf(
+			"undeclared environment variable %q read at %s:%d (not in declared env allowlist)",
+			e.Name, e.File, e.Line))
 	}
 	v.Checks = append(v.Checks, "capabilities: UNDECLARED capability detected")
 	return nil

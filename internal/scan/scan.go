@@ -42,6 +42,24 @@ type Evidence struct {
 	Snippet    string
 }
 
+// HostHit records a single observed network host with the file:line where it was
+// seen. It is what lets verify name an off-allowlist host in a REJECTED message
+// rather than just flagging the coarse net class.
+type HostHit struct {
+	Host string
+	File string
+	Line int
+}
+
+// EnvHit records a single observed environment-variable read with its name and
+// the file:line where it was seen, so verify can name a secret env var pulled
+// outside the declared allowlist.
+type EnvHit struct {
+	Name string
+	File string
+	Line int
+}
+
 // Result is the full output of scanning a skill directory.
 type Result struct {
 	SkillName    string
@@ -64,6 +82,12 @@ type Result struct {
 
 	// observedHosts accumulates hostnames seen in network evidence.
 	observedHosts []string
+	// observedHostHits keeps the per-host file:line evidence so verify can name
+	// where an off-allowlist host was reached.
+	observedHostHits []HostHit
+	// observedEnvHits keeps every observed env-var read (name + file:line) so
+	// verify can diff against the declared env allowlist at value granularity.
+	observedEnvHits []EnvHit
 }
 
 // skillFrontmatter is the subset of SKILL.md frontmatter skillprov reads.
@@ -135,6 +159,30 @@ var signatures = []signature{
 
 // hostRe extracts hostnames from URLs to enrich network evidence.
 var hostRe = regexp.MustCompile(`(?i)https?://([a-z0-9.\-]+)`)
+
+// envNameRe captures the bare variable NAME from a shell $VAR / ${VAR} / ${VAR:-x}
+// reference. The leading capture group is just the name, so a default-value
+// expansion like ${AWS_SECRET_ACCESS_KEY:-} still yields AWS_SECRET_ACCESS_KEY.
+var envNameRe = regexp.MustCompile(`\$\{?([A-Z_][A-Z0-9_]*)`)
+
+// getenvNameRe captures the literal env-var name passed to a getenv-style call in
+// Python / Go / Node / Ruby, e.g. os.getenv("AWS_SECRET_ACCESS_KEY"),
+// os.Getenv("X"), process.env.X, ENV["X"]. This lets the env allowlist diff name
+// the variable even outside shell scripts.
+var getenvNameRe = regexp.MustCompile(`(?i)(?:getenv|environ)\s*[\(\[]\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|ENV\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]`)
+
+// shellBuiltinEnv are shell-provided variables that are not skill-author secrets
+// and must not be treated as an undeclared env capability when matched by the
+// broad $VAR heuristic. They are universally present in any shell environment.
+var shellBuiltinEnv = map[string]bool{
+	"HOME": true, "PATH": true, "PWD": true, "OLDPWD": true, "SHELL": true,
+	"USER": true, "LOGNAME": true, "HOSTNAME": true, "TERM": true, "LANG": true,
+	"LC_ALL": true, "TMPDIR": true, "TMP": true, "TEMP": true, "IFS": true,
+	"PS1": true, "PS2": true, "RANDOM": true, "SECONDS": true, "LINENO": true,
+	"PPID": true, "UID": true, "EUID": true, "BASH": true, "BASH_VERSION": true,
+	"SHLVL": true, "FUNCNAME": true, "BASH_SOURCE": true, "OPTARG": true,
+	"OPTIND": true, "REPLY": true,
+}
 
 // Scan walks dir, parses SKILL.md, and detects observed capabilities.
 func Scan(dir string) (*Result, error) {
@@ -335,7 +383,12 @@ func (r *Result) scanFile(path, rel string) error {
 			})
 			if sig.cap == CapNet {
 				for _, h := range hostRe.FindAllStringSubmatch(line, -1) {
-					r.observedHost(h[1])
+					r.observedHost(h[1], rel, lineNo)
+				}
+			}
+			if sig.cap == CapEnv {
+				for _, name := range envNamesIn(line) {
+					r.observedEnv(name, rel, lineNo)
 				}
 			}
 		}
@@ -343,22 +396,70 @@ func (r *Result) scanFile(path, rel string) error {
 	return sc.Err()
 }
 
-func (r *Result) observedHost(h string) {
-	r.observedHosts = appendUnique(r.observedHosts, h)
+func (r *Result) observedHost(h, file string, line int) {
+	h = strings.ToLower(strings.TrimSuffix(h, "."))
+	if h == "" {
+		return
+	}
+	if !containsStr(r.observedHosts, h) {
+		r.observedHosts = append(r.observedHosts, h)
+	}
+	r.observedHostHits = append(r.observedHostHits, HostHit{Host: h, File: file, Line: line})
 }
 
-func appendUnique(s []string, v string) []string {
-	for _, x := range s {
-		if x == v {
-			return s
+func (r *Result) observedEnv(name, file string, line int) {
+	if name == "" || shellBuiltinEnv[name] {
+		return
+	}
+	r.observedEnvHits = append(r.observedEnvHits, EnvHit{Name: name, File: file, Line: line})
+}
+
+// envNamesIn returns the distinct env-var names referenced on a single line,
+// pulling both shell $VAR/${VAR} forms and getenv-style API calls.
+func envNamesIn(line string) []string {
+	var out []string
+	add := func(n string) {
+		if n != "" && !containsStr(out, n) {
+			out = append(out, n)
 		}
 	}
-	return append(s, v)
+	for _, m := range envNameRe.FindAllStringSubmatch(line, -1) {
+		add(m[1])
+	}
+	for _, m := range getenvNameRe.FindAllStringSubmatch(line, -1) {
+		for _, g := range m[1:] {
+			if g != "" {
+				add(g)
+			}
+		}
+	}
+	return out
+}
+
+func containsStr(s []string, v string) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // ObservedHosts returns the network hosts found during the scan.
 func (r *Result) ObservedHosts() []string {
 	return manifest.SortStrings(r.observedHosts)
+}
+
+// ObservedHostHits returns every observed network host with its file:line
+// evidence, in scan order.
+func (r *Result) ObservedHostHits() []HostHit {
+	return r.observedHostHits
+}
+
+// ObservedEnvHits returns every observed env-var read with its name and file:line
+// evidence, in scan order.
+func (r *Result) ObservedEnvHits() []EnvHit {
+	return r.observedEnvHits
 }
 
 // DeclaredCapabilities builds a manifest.Capabilities block from what the skill

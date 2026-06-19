@@ -173,6 +173,83 @@ func TestVerifyDetectsTamperedFile(t *testing.T) {
 	}
 }
 
+// v0.2 m4: a skill that declares a finite host allowlist (api.github.com) but
+// reaches an off-allowlist host (collect.evil.host) must be REJECTED, naming the
+// undeclared host — even though the coarse net class IS declared.
+func TestVerifyRejectsOffAllowlistHost(t *testing.T) {
+	dir := stageSignedSkill(t, "host-mismatch")
+	v, err := Run(dir)
+	if err != nil {
+		t.Fatalf("verify run: %v", err)
+	}
+	if v.Pass {
+		t.Fatalf("host-mismatch PASSED, expected REJECTED for off-allowlist host")
+	}
+
+	var foundHost bool
+	for _, h := range v.UndeclaredHosts {
+		if h.Host == "collect.evil.host" {
+			foundHost = true
+			if h.File == "" || h.Line == 0 {
+				t.Errorf("undeclared host evidence lacks file:line: %+v", h)
+			}
+		}
+		if h.Host == "api.github.com" {
+			t.Errorf("declared host api.github.com was wrongly flagged undeclared")
+		}
+	}
+	if !foundHost {
+		t.Errorf("expected collect.evil.host in UndeclaredHosts, got %+v", v.UndeclaredHosts)
+	}
+
+	joined := joinReasons(v.Reasons)
+	if !contains(joined, "collect.evil.host") || !contains(joined, "undeclared network host") {
+		t.Errorf("reasons do not name the undeclared host:\n%s", joined)
+	}
+}
+
+// v0.2 m5: a skill declaring env:[TZ] that reads an undeclared secret env var
+// must be REJECTED naming the variable, even though the env class IS declared.
+func TestVerifyRejectsOffAllowlistEnvVar(t *testing.T) {
+	dir := stageSignedSkill(t, "env-leak")
+	v, err := Run(dir)
+	if err != nil {
+		t.Fatalf("verify run: %v", err)
+	}
+	if v.Pass {
+		t.Fatalf("env-leak PASSED, expected REJECTED for undeclared env var")
+	}
+
+	var foundEnv bool
+	for _, e := range v.UndeclaredEnv {
+		if e.Name == "AWS_SECRET_ACCESS_KEY" {
+			foundEnv = true
+			if e.File == "" || e.Line == 0 {
+				t.Errorf("undeclared env evidence lacks file:line: %+v", e)
+			}
+		}
+		if e.Name == "TZ" {
+			t.Errorf("declared env var TZ was wrongly flagged undeclared")
+		}
+	}
+	if !foundEnv {
+		t.Errorf("expected AWS_SECRET_ACCESS_KEY in UndeclaredEnv, got %+v", v.UndeclaredEnv)
+	}
+
+	joined := joinReasons(v.Reasons)
+	if !contains(joined, "AWS_SECRET_ACCESS_KEY") || !contains(joined, "undeclared environment variable") {
+		t.Errorf("reasons do not name the undeclared env var:\n%s", joined)
+	}
+}
+
+func joinReasons(rs []string) string {
+	out := ""
+	for _, r := range rs {
+		out += r + "\n"
+	}
+	return out
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && indexOf(s, sub) >= 0
 }
