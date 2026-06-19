@@ -24,6 +24,7 @@
 ## Table of contents
 
 - [Why this exists](#why-this-exists)
+- [Architecture](#architecture)
 - [Install &amp; quickstart](#install--quickstart)
 - [Demo](#demo)
 - [What a capability manifest looks like](#what-a-capability-manifest-looks-like)
@@ -56,6 +57,20 @@ or an out-of-directory write, it's rejected. That's the gate communities like
 [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code)
 have been missing: a signature can't catch an over-privileged-but-signed Skill —
 a capability manifest can.
+
+---
+
+## <img src="https://api.iconify.design/tabler/topology-star-3.svg?color=%23E03131" width="20" height="20" align="center" /> Architecture
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
+    <img src="./assets/atlas-light.svg" width="880" alt="A skill directory flows through manifest (sha256 content lock + capability scan), then sign (ed25519 over the canonical manifest into bundle.sig), then verify, which recomputes the content lock, checks the signature, and diffs declared vs statically observed net/fs-write/exec/env capabilities, emitting PASS or a REJECTED verdict on undeclared over-reach">
+  </picture>
+</p>
+
+The whole pipeline is one Go binary — fully offline, no daemon, no server. `manifest` walks the directory, computes a per-file sha256 content lock, scans the **observed** capabilities, and writes `capability-manifest.json` plus a CycloneDX-subset SBOM; `sign` ed25519-signs the canonical manifest into `bundle.sig`. `verify` is a three-stage gate: recompute the content lock → check the signature → diff the **declared** capabilities against the **statically observed** ones — and the moment it observes one undeclared over-reach, it returns REJECTED with exit code 1.
 
 ---
 
@@ -102,16 +117,17 @@ capabilities, prints a red REJECTED, and exits 1.
 
 ---
 
-## Demo
+## <img src="https://api.iconify.design/tabler/photo.svg?color=%23E03131" width="20" height="20" align="center" /> Demo
 
 The full `manifest → sign → verify (PASS) → verify poisoned (REJECTED)` loop,
 about 30 seconds end to end:
 
-[![asciicast](https://asciinema.org/a/PLACEHOLDER.svg)](https://asciinema.org/a/PLACEHOLDER)
+![skillprov demo](./assets/demo.gif)
 
-> The recording ships in the repo at [`assets/demo.cast`](./assets/demo.cast) —
-> play it locally with `asciinema play assets/demo.cast`. Want a GIF? Run
-> `vhs assets/demo.tape` (see [`assets/README.md`](./assets/README.md)).
+> The GIF is rendered in CI with [vhs](https://github.com/charmbracelet/vhs) from
+> [`docs/demo.tape`](./docs/demo.tape); render it locally with `vhs docs/demo.tape`.
+> An asciinema recording also ships at [`assets/demo.cast`](./assets/demo.cast) —
+> play it with `asciinema play assets/demo.cast`.
 
 ---
 

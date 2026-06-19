@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 360" width="880" height="360"
+     font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+     role="img" aria-label="skillprov architecture: a skill directory enters manifest (sha256 content lock + capability scan), then sign (ed25519 over the canonical manifest into bundle.sig), then verify, which re-checks the content lock and signature and diffs declared vs statically observed net/fs-write/exec/env capabilities, emitting PASS or a REJECTED verdict on undeclared over-reach">
+  <defs>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#B9B9C2"/></marker>
+  </defs>
+  <rect x="0" y="0" width="880" height="360" fill="#F5F5F7"/>
+
+  <!-- offline / single-binary frame -->
+  <rect x="24" y="28" width="832" height="308" rx="18" fill="none" stroke="#F08C00" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="44" y="50" font-size="13" font-weight="600" fill="#9A5A00">one Go binary · fully offline · no daemon, no server</text>
+
+  <!-- Skill dir -->
+  <g>
+    <rect x="40" y="92" width="150" height="200" rx="15" fill="#475569" fill-opacity="0.08" stroke="#475569" stroke-width="1.5"/>
+    <text x="115" y="118" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">Skill dir</text>
+    <g font-size="11" fill="#475569">
+      <rect x="56" y="134" width="118" height="34" rx="9" fill="#475569" fill-opacity="0.07" stroke="#475569" stroke-width="1.1"/>
+      <text x="115" y="155" text-anchor="middle" font-weight="600">SKILL.md</text>
+      <rect x="56" y="176" width="118" height="34" rx="9" fill="#475569" fill-opacity="0.07" stroke="#475569" stroke-width="1.1"/>
+      <text x="115" y="197" text-anchor="middle">scripts/*.sh</text>
+      <rect x="56" y="218" width="118" height="34" rx="9" fill="#475569" fill-opacity="0.07" stroke="#475569" stroke-width="1.1"/>
+      <text x="115" y="239" text-anchor="middle">frontmatter caps</text>
+      <text x="115" y="276" text-anchor="middle" font-size="10.5" fill="#6E6E73">declared net/fs/exec/env</text>
+    </g>
+  </g>
+
+  <!-- connectors row -->
+  <g stroke="#C9C9D0" stroke-width="1.6" fill="none">
+    <line x1="190" y1="192" x2="232" y2="192" marker-end="url(#ah-l)"/>
+    <line x1="392" y1="192" x2="434" y2="192" marker-end="url(#ah-l)"/>
+    <line x1="594" y1="192" x2="636" y2="192" marker-end="url(#ah-l)"/>
+  </g>
+
+  <!-- manifest -->
+  <g>
+    <rect x="232" y="92" width="160" height="200" rx="15" fill="#E03131" fill-opacity="0.10" stroke="#E03131" stroke-width="1.6"/>
+    <text x="312" y="116" text-anchor="middle" font-size="15" font-weight="700" fill="#A51111">manifest</text>
+    <g font-size="11.5">
+      <rect x="248" y="130" width="128" height="44" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#E03131" stroke-width="1.1"/>
+      <text x="312" y="148" text-anchor="middle" fill="#5a2020" font-weight="600">sha256 each file</text>
+      <text x="312" y="164" text-anchor="middle" fill="#7a3a3a" font-size="10.5">content lock</text>
+      <rect x="248" y="182" width="128" height="44" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#E03131" stroke-width="1.1"/>
+      <text x="312" y="200" text-anchor="middle" fill="#5a2020" font-weight="600">scan capabilities</text>
+      <text x="312" y="216" text-anchor="middle" fill="#7a3a3a" font-size="10.5">observed set</text>
+      <rect x="248" y="234" width="128" height="44" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#E03131" stroke-width="1.1"/>
+      <text x="312" y="252" text-anchor="middle" fill="#5a2020" font-weight="600">manifest.json</text>
+      <text x="312" y="268" text-anchor="middle" fill="#7a3a3a" font-size="10.5">+ SBOM (CycloneDX)</text>
+    </g>
+  </g>
+
+  <!-- sign -->
+  <g>
+    <rect x="434" y="92" width="160" height="200" rx="15" fill="#F08C00" fill-opacity="0.10" stroke="#F08C00" stroke-width="1.6"/>
+    <text x="514" y="116" text-anchor="middle" font-size="15" font-weight="700" fill="#9A5A00">sign</text>
+    <g font-size="11.5">
+      <rect x="450" y="134" width="128" height="46" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#F08C00" stroke-width="1.1"/>
+      <text x="514" y="153" text-anchor="middle" fill="#5a4010" font-weight="600">local ed25519 key</text>
+      <text x="514" y="169" text-anchor="middle" fill="#7a5a20" font-size="10.5">PEM · auto-generated</text>
+      <rect x="450" y="190" width="128" height="46" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#F08C00" stroke-width="1.1"/>
+      <text x="514" y="209" text-anchor="middle" fill="#5a4010" font-weight="600">canonical manifest</text>
+      <text x="514" y="225" text-anchor="middle" fill="#7a5a20" font-size="10.5">deterministic bytes</text>
+      <rect x="450" y="246" width="128" height="34" rx="9" fill="#F08C00" fill-opacity="0.16" stroke="#F08C00" stroke-width="1.2"/>
+      <text x="514" y="267" text-anchor="middle" fill="#9A5A00" font-weight="700">bundle.sig</text>
+    </g>
+  </g>
+
+  <!-- verify -->
+  <g>
+    <rect x="636" y="92" width="200" height="200" rx="15" fill="#2F9E44" fill-opacity="0.08" stroke="#2F9E44" stroke-width="1.6"/>
+    <text x="736" y="116" text-anchor="middle" font-size="15" font-weight="700" fill="#176B2B">verify</text>
+    <g font-size="11.5">
+      <rect x="652" y="130" width="168" height="32" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#2F9E44" stroke-width="1.1"/>
+      <text x="666" y="151" fill="#1d4a2a"><tspan font-weight="700" fill="#176B2B">1</tspan>  recompute content lock</text>
+      <rect x="652" y="168" width="168" height="32" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#2F9E44" stroke-width="1.1"/>
+      <text x="666" y="189" fill="#1d4a2a"><tspan font-weight="700" fill="#176B2B">2</tspan>  check ed25519 signature</text>
+      <rect x="652" y="206" width="168" height="32" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#2F9E44" stroke-width="1.1"/>
+      <text x="666" y="227" fill="#1d4a2a"><tspan font-weight="700" fill="#176B2B">3</tspan>  diff declared vs observed</text>
+      <rect x="652" y="248" width="80" height="32" rx="9" fill="#2F9E44" fill-opacity="0.16" stroke="#2F9E44" stroke-width="1.2"/>
+      <text x="692" y="269" text-anchor="middle" fill="#176B2B" font-weight="700">PASS</text>
+      <rect x="740" y="248" width="80" height="32" rx="9" fill="#E03131" fill-opacity="0.14" stroke="#E03131" stroke-width="1.2"/>
+      <text x="780" y="269" text-anchor="middle" fill="#A51111" font-weight="700">REJECTED</text>
+    </g>
+  </g>
+</svg>
