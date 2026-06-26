@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
-  <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.2.0-E03131.svg"></a>
+  <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.3.0-E03131.svg"></a>
   <a href="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8.svg?logo=go&logoColor=white">
   <img alt="capability-manifest" src="https://img.shields.io/badge/capability--manifest-v0-F08C00.svg">
@@ -71,7 +71,7 @@ a capability manifest can.
   </picture>
 </p>
 
-The whole pipeline is one Go binary — fully offline, no daemon, no server. `manifest` walks the directory, computes a per-file sha256 content lock, scans the **observed** capabilities, and writes `capability-manifest.json` plus a CycloneDX-subset SBOM; `sign` ed25519-signs the canonical manifest into `bundle.sig`. `verify` is a three-stage gate: recompute the content lock → check the signature → diff the **declared** capabilities against the **statically observed** ones at value granularity — and the moment it observes one undeclared over-reach, it returns REJECTED with exit code 1. As of v0.2 an observed network **host** or **env var** outside the declared allowlist is itself an undeclared capability: declaring `api.github.com` no longer permits a quiet fetch to `evil.host`, and declaring `env-vars: [TZ]` no longer permits reading `$AWS_SECRET_ACCESS_KEY`.
+The whole pipeline is one Go binary — fully offline, no daemon, no server. `manifest` walks the directory, computes a per-file sha256 content lock, scans the **observed** capabilities, and writes `capability-manifest.json` plus a CycloneDX-subset SBOM; `sign` ed25519-signs the canonical manifest into `bundle.sig`. `verify` is a three-stage gate: recompute the content lock → check the signature → diff the **declared** capabilities against the **statically observed** ones at value granularity — and the moment it observes one undeclared over-reach, it returns REJECTED with exit code 1. As of v0.2 an observed network **host** or **env var** outside the declared allowlist is itself an undeclared capability: declaring `api.github.com` no longer permits a quiet fetch to `evil.host`, and declaring `env-vars: [TZ]` no longer permits reading `$AWS_SECRET_ACCESS_KEY`. As of v0.3 an observed **exec command** outside the declared allowlist is likewise undeclared: declaring `commands: [git]` no longer permits a quiet `curl … | sh` — closing the last class-level capability hole.
 
 ---
 
@@ -208,12 +208,12 @@ Drop it into a skill catalog so every PR is gated in one step:
 
 ```yaml
 - name: skillprov verify gate
-  uses: SuperMarioYL/skillprov/.github/actions/skillprov-verify@v0.2.0
+  uses: SuperMarioYL/skillprov/.github/actions/skillprov-verify@v0.3.0
   with:
     skill-dirs: |
       skills/weather-lookup
       skills/markdown-prettify
-    version: v0.2.0
+    version: v0.3.0
 ```
 
 A full runnable example lives in [`.github/workflows/verify-gate.example.yml`](./.github/workflows/verify-gate.example.yml):
@@ -229,9 +229,9 @@ clean-skill passes (green); poisoned-skill and host-mismatch are rejected (red).
 - [x] **m4** (v0.2) — enforce the declared **network-host allowlist** at value level: an off-allowlist host is rejected and named
 - [x] **m5** (v0.2) — enforce the declared **env-var allowlist** at value level: an undeclared env var is rejected and named
 - [x] **m6** (v0.2) — a reusable [composite GitHub Action](#ci-gate-github-action) that turns `skillprov verify` into a one-step PR gate
+- [x] **m7** (v0.3) — enforce the declared **exec command allowlist** at value level: declaring `commands: [git]` no longer lets a skill quietly `curl … | sh`; the off-allowlist command is rejected and named — closing the last class-level capability hole
 - [ ] cosign keyless (Fulcio / public Rekor) as an opt-in signing path
 - [ ] Finer-grained capability detection (stronger per-language heuristics / AST)
-- [ ] Per-exec-argument allowlisting (declare which commands may run) — class-level exec stays in v0.2, arg-level deferred to v0.3
 
 ---
 
@@ -242,7 +242,7 @@ v0.1 draws these lines explicitly so it doesn't over-promise:
 - **No runtime sandbox** — skillprov declares + verifies; it does not constrain the skill's execution.
 - No web UI / dashboard — CLI only.
 - No hosted registry / server — verification stays fully offline (v0.2 adds a composite GitHub Action to wire the gate into CI, still serverless).
-- No per-exec-argument allowlisting — exec stays class-level in v0.2; arg-level is deferred to v0.3.
+- No runtime per-argument sandbox — as of v0.3 exec is enforced at value level by **command name** (declaring `commands: [git]` rejects `curl`/`sh`), but skillprov still does not check the arguments of a single command, nor intercept at runtime.
 - No multi-signer / threshold / org-policy trust roots.
 - A static scan catches the honest-mistake and naive-poison cases (the AUR class), but not deliberately obfuscated capabilities — it raises the floor, it isn't a sandbox.
 

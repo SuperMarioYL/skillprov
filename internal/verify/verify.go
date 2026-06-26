@@ -37,6 +37,10 @@ type Verdict struct {
 	// UndeclaredEnv lists env vars the skill read that fall outside its declared
 	// env allowlist (value-level env enforcement, v0.2).
 	UndeclaredEnv []scan.EnvHit
+	// UndeclaredExec lists external commands the skill shells out to that fall
+	// outside its declared exec command allowlist (value-level exec enforcement,
+	// v0.3 — the last class-level capability hole closed).
+	UndeclaredExec []scan.ExecHit
 }
 
 // Run executes all three verification stages over dir.
@@ -150,13 +154,16 @@ func checkCapabilities(dir string, m *manifest.CapabilityManifest, v *Verdict) e
 		}
 	}
 
-	// Value-level enforcement (v0.2): even when the net / env CLASS is declared, a
-	// finite host or env-var allowlist must contain every observed host / env var.
-	// Declaring api.github.com does not permit a quiet fetch to evil.host.
+	// Value-level enforcement: even when the net / env / exec CLASS is declared, a
+	// finite host / env-var / command allowlist must contain every observed host /
+	// env var / command. Declaring api.github.com does not permit a quiet fetch to
+	// evil.host (v0.2); declaring exec:[git] does not permit a quiet `curl | sh` (v0.3).
 	checkHostAllowlist(m, res, v)
 	checkEnvAllowlist(m, res, v)
+	checkExecAllowlist(m, res, v)
 
-	if len(undeclaredList) == 0 && len(v.UndeclaredHosts) == 0 && len(v.UndeclaredEnv) == 0 {
+	if len(undeclaredList) == 0 && len(v.UndeclaredHosts) == 0 &&
+		len(v.UndeclaredEnv) == 0 && len(v.UndeclaredExec) == 0 {
 		v.Checks = append(v.Checks, "capabilities: observed set is a subset of declared")
 		return nil
 	}
@@ -178,6 +185,11 @@ func checkCapabilities(dir string, m *manifest.CapabilityManifest, v *Verdict) e
 		v.Reasons = append(v.Reasons, fmt.Sprintf(
 			"undeclared environment variable %q read at %s:%d (not in declared env allowlist)",
 			e.Name, e.File, e.Line))
+	}
+	for _, x := range v.UndeclaredExec {
+		v.Reasons = append(v.Reasons, fmt.Sprintf(
+			"undeclared exec command %q observed at %s:%d (not in declared exec allowlist)",
+			x.Command, x.File, x.Line))
 	}
 	v.Checks = append(v.Checks, "capabilities: UNDECLARED capability detected")
 	return nil

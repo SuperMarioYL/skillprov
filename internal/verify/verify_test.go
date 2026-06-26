@@ -242,6 +242,50 @@ func TestVerifyRejectsOffAllowlistEnvVar(t *testing.T) {
 	}
 }
 
+// v0.3 m7: a skill declaring a finite exec allowlist (commands:[git]) that shells
+// out to undeclared commands (curl, sh via `curl ... | sh`) must be REJECTED,
+// naming each off-allowlist command — even though the coarse exec class IS
+// declared and the network host it reaches is on its host allowlist. This closes
+// the last class-level capability hole.
+func TestVerifyRejectsOffAllowlistExecCommand(t *testing.T) {
+	dir := stageSignedSkill(t, "exec-mismatch")
+	v, err := Run(dir)
+	if err != nil {
+		t.Fatalf("verify run: %v", err)
+	}
+	if v.Pass {
+		t.Fatalf("exec-mismatch PASSED, expected REJECTED for off-allowlist commands")
+	}
+
+	got := map[string]bool{}
+	for _, x := range v.UndeclaredExec {
+		got[x.Command] = true
+		if x.File == "" || x.Line == 0 {
+			t.Errorf("undeclared exec evidence lacks file:line: %+v", x)
+		}
+		if x.Command == "git" {
+			t.Errorf("declared command git was wrongly flagged undeclared")
+		}
+	}
+	for _, want := range []string{"curl", "sh"} {
+		if !got[want] {
+			t.Errorf("expected %q in UndeclaredExec, got %+v", want, v.UndeclaredExec)
+		}
+	}
+
+	joined := joinReasons(v.Reasons)
+	if !contains(joined, "undeclared exec command") || !contains(joined, "curl") {
+		t.Errorf("reasons do not name the undeclared command:\n%s", joined)
+	}
+	// The host it reaches IS on its allowlist, so the host diff must NOT fire —
+	// proving the exec diff is what rejected this skill, independently of net.
+	for _, h := range v.UndeclaredHosts {
+		if h.Host == "get.example.com" {
+			t.Errorf("declared host get.example.com wrongly flagged undeclared: %+v", h)
+		}
+	}
+}
+
 func joinReasons(rs []string) string {
 	out := ""
 	for _, r := range rs {

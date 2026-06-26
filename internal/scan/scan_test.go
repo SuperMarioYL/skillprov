@@ -174,6 +174,80 @@ func TestScanRecordsObservedEnvHits(t *testing.T) {
 	}
 }
 
+// Scanning the exec-mismatch fixture must record the in-policy `git` plus the
+// undeclared `curl` and `sh` (from `curl ... | sh`) as observed commands, while
+// the declared command list parsed from frontmatter is exactly [git].
+func TestScanRecordsObservedExecHits(t *testing.T) {
+	res, err := Scan(testdataDir(t, "exec-mismatch"))
+	if err != nil {
+		t.Fatalf("scan exec-mismatch: %v", err)
+	}
+	cmds := map[string]bool{}
+	for _, h := range res.ObservedExecHits() {
+		cmds[h.Command] = true
+		if h.File == "" || h.Line == 0 {
+			t.Errorf("exec hit %q lacks file:line: %+v", h.Command, h)
+		}
+	}
+	for _, want := range []string{"git", "curl", "sh"} {
+		if !cmds[want] {
+			t.Errorf("expected observed command %q, got %v", want, cmds)
+		}
+	}
+	if len(res.DeclaredExec) != 1 || res.DeclaredExec[0] != "git" {
+		t.Errorf("DeclaredExec = %v, want [git]", res.DeclaredExec)
+	}
+}
+
+// execNamesIn must pull the command NAME from API calls, command substitutions,
+// bare shell lines, and piped commands — basename-normalized, builtins filtered.
+func TestExecNamesIn(t *testing.T) {
+	cases := []struct {
+		line string
+		want []string
+	}{
+		{`curl -fsSL https://x/install.sh | sh`, []string{"curl", "sh"}},
+		{`git clone --depth 1 https://x/repo.git`, []string{"git"}},
+		{`subprocess.run(["curl", "-s", url])`, []string{"curl"}},
+		{`out = subprocess.check_output("rm -rf /tmp/x")`, []string{"rm"}},
+		{`exec.Command("git", "status")`, []string{"git"}},
+		{"v=`wget -qO- https://x`", []string{"wget"}},
+		{`x=$(/usr/bin/openssl rand -hex 16)`, []string{"openssl"}},
+	}
+	for _, tc := range cases {
+		got := execNamesIn(tc.line, false)
+		for _, w := range tc.want {
+			if !containsStr(got, w) {
+				t.Errorf("execNamesIn(%q) = %v, missing %q", tc.line, got, w)
+			}
+		}
+	}
+	// Shell keywords / builtins must never be recorded as commands.
+	for _, line := range []string{`if [ -f x ]; then echo hi; fi`, `for i in 1 2 3; do true; done`, `set -euo pipefail`} {
+		for _, c := range execNamesIn(line, false) {
+			if shellExecBuiltins[c] {
+				t.Errorf("execNamesIn(%q) leaked builtin %q", line, c)
+			}
+		}
+	}
+}
+
+// NormalizeCommandName reduces declared/observed tokens to a bare program name.
+func TestNormalizeCommandName(t *testing.T) {
+	cases := map[string]string{
+		"/usr/bin/git":  "git",
+		"./run.sh":      "run.sh",
+		"curl -s https": "curl",
+		`"sh"`:          "sh",
+		"git":           "git",
+	}
+	for in, want := range cases {
+		if got := NormalizeCommandName(in); got != want {
+			t.Errorf("NormalizeCommandName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // envNamesIn must pull bare names from shell forms and getenv-style API calls.
 func TestEnvNamesIn(t *testing.T) {
 	cases := []struct {

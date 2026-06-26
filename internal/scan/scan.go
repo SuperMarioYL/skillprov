@@ -60,6 +60,15 @@ type EnvHit struct {
 	Line int
 }
 
+// ExecHit records a single observed shell-out with the command NAME (argv[0],
+// e.g. "curl", "git", "sh") and the file:line where it was seen, so verify can
+// name an off-allowlist command rather than just flagging the coarse exec class.
+type ExecHit struct {
+	Command string
+	File    string
+	Line    int
+}
+
 // Result is the full output of scanning a skill directory.
 type Result struct {
 	SkillName    string
@@ -68,10 +77,12 @@ type Result struct {
 
 	// Declared is the capability set parsed from SKILL.md frontmatter.
 	Declared map[Capability]bool
-	// DeclaredHosts / DeclaredEnv carry the finer-grained declarations when the
-	// author listed specific hosts or environment variables.
+	// DeclaredHosts / DeclaredEnv / DeclaredExec carry the finer-grained
+	// declarations when the author listed specific hosts, environment variables,
+	// or exec commands.
 	DeclaredHosts []string
 	DeclaredEnv   []string
+	DeclaredExec  []string
 
 	// Observed is the capability set the static scan actually found, with the
 	// evidence that triggered each.
@@ -88,6 +99,10 @@ type Result struct {
 	// observedEnvHits keeps every observed env-var read (name + file:line) so
 	// verify can diff against the declared env allowlist at value granularity.
 	observedEnvHits []EnvHit
+	// observedExecHits keeps every observed shell-out (command name + file:line)
+	// so verify can diff against the declared exec command allowlist at value
+	// granularity.
+	observedExecHits []ExecHit
 }
 
 // skillFrontmatter is the subset of SKILL.md frontmatter skillprov reads.
@@ -103,12 +118,13 @@ type skillFrontmatter struct {
 }
 
 type declaredCaps struct {
-	Net     *bool    `yaml:"net"`
-	FSWrite *bool    `yaml:"fs-write"`
-	Exec    *bool    `yaml:"exec"`
-	Env     *bool    `yaml:"env"`
-	Hosts   []string `yaml:"hosts"`
-	EnvVars []string `yaml:"env-vars"`
+	Net      *bool    `yaml:"net"`
+	FSWrite  *bool    `yaml:"fs-write"`
+	Exec     *bool    `yaml:"exec"`
+	Env      *bool    `yaml:"env"`
+	Hosts    []string `yaml:"hosts"`
+	EnvVars  []string `yaml:"env-vars"`
+	Commands []string `yaml:"commands"`
 }
 
 // scannable file extensions. SKILL.md itself is scanned for inline code too.
@@ -170,6 +186,28 @@ var envNameRe = regexp.MustCompile(`\$\{?([A-Z_][A-Z0-9_]*)`)
 // os.Getenv("X"), process.env.X, ENV["X"]. This lets the env allowlist diff name
 // the variable even outside shell scripts.
 var getenvNameRe = regexp.MustCompile(`(?i)(?:getenv|environ)\s*[\(\[]\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|ENV\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]`)
+
+// execCmdSubstRe pulls the command portion out of a shell command substitution —
+// backticks (`...`) or $(...) — so the leading command word can be extracted.
+var execCmdSubstRe = regexp.MustCompile("`([^`]+)`|\\$\\(([^)]+)\\)")
+
+// execApiArgRe pulls the first string argument out of an exec-style API call in
+// Python / Go / Node / Ruby, e.g. subprocess.run("curl ..."),
+// subprocess.run(["curl", ...]), os.system("rm -rf /"), exec.Command("git", ...),
+// child_process.spawn("sh", ...). The command NAME is the leading token of that
+// argument. Two capture groups cover the quoted-string and list-first-element forms.
+var execApiArgRe = regexp.MustCompile(`(?i)(?:subprocess\.\w+|os\.system|popen|check_output|check_call|exec\.command|execfile|execsync|system|spawn|spawnsync|execfilesync|child_process\.\w+)\s*\(\s*\[?\s*['"]([^'"]+)['"]`)
+
+// shellCmdLeadRe matches a bare command invocation at the start of a shell line
+// (after optional indentation and common prefixes like `sudo`/`exec`/`command`),
+// capturing the command word. This catches `curl https://x | sh` style lines that
+// do not use a command-substitution or an API wrapper.
+var shellCmdLeadRe = regexp.MustCompile(`^\s*(?:sudo\s+|exec\s+|command\s+|nohup\s+|time\s+|env\s+[A-Z_]+=\S+\s+)*([A-Za-z_][\w.\-/]*)`)
+
+// pipedCmdRe captures the command word immediately following a shell pipe `|`, so
+// `curl https://x | sh` records BOTH `curl` and `sh`. The classic remote-exec
+// supply-chain trick (`curl ... | sh`) is exactly what value-level exec must catch.
+var pipedCmdRe = regexp.MustCompile(`\|\s*(?:sudo\s+)?([A-Za-z_][\w.\-/]*)`)
 
 // shellBuiltinEnv are shell-provided variables that are not skill-author secrets
 // and must not be treated as an undeclared env capability when matched by the
@@ -258,6 +296,7 @@ func (r *Result) parseSkillMD(dir string) error {
 		lockExplicit(r.Declared, locked, CapEnv, c.Env)
 		r.DeclaredHosts = manifest.SortStrings(c.Hosts)
 		r.DeclaredEnv = manifest.SortStrings(c.EnvVars)
+		r.DeclaredExec = manifest.SortStrings(c.Commands)
 		if len(c.Hosts) > 0 {
 			r.Declared[CapNet] = true
 			locked[CapNet] = true
@@ -265,6 +304,10 @@ func (r *Result) parseSkillMD(dir string) error {
 		if len(c.EnvVars) > 0 {
 			r.Declared[CapEnv] = true
 			locked[CapEnv] = true
+		}
+		if len(c.Commands) > 0 {
+			r.Declared[CapExec] = true
+			locked[CapExec] = true
 		}
 	}
 
@@ -366,14 +409,16 @@ func (r *Result) scanFile(path, rel string) error {
 		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "* ") {
 			continue
 		}
+
+		snippet := strings.TrimSpace(line)
+		if len(snippet) > 120 {
+			snippet = snippet[:117] + "..."
+		}
+
 		for _, sig := range signatures {
 			loc := sig.re.FindStringIndex(line)
 			if loc == nil {
 				continue
-			}
-			snippet := strings.TrimSpace(line)
-			if len(snippet) > 120 {
-				snippet = snippet[:117] + "..."
 			}
 			r.Observed[sig.cap] = append(r.Observed[sig.cap], Evidence{
 				Capability: sig.cap,
@@ -390,6 +435,27 @@ func (r *Result) scanFile(path, rel string) error {
 				for _, name := range envNamesIn(line) {
 					r.observedEnv(name, rel, lineNo)
 				}
+			}
+		}
+
+		// Exec command extraction runs once per line, independent of which class
+		// signatures fired: a bare `curl ... | sh` shell-out fires only the CapNet
+		// signature, yet it IS an exec of `curl` and `sh`. Recording it here (and
+		// registering CapExec evidence when a command is found) is what lets the
+		// value-level exec allowlist diff catch the classic `curl | sh` trick that
+		// the coarse exec signatures alone would miss. (v0.3, m7)
+		for _, cmd := range execNamesIn(line, isMarkdown) {
+			before := len(r.observedExecHits)
+			r.observedExec(cmd, rel, lineNo)
+			// Only register class-level exec evidence when the hit was actually
+			// recorded (i.e. not a filtered builtin), so ObservedCaps stays honest.
+			if len(r.observedExecHits) > before {
+				r.Observed[CapExec] = append(r.Observed[CapExec], Evidence{
+					Capability: CapExec,
+					File:       rel,
+					Line:       lineNo,
+					Snippet:    snippet,
+				})
 			}
 		}
 	}
@@ -412,6 +478,143 @@ func (r *Result) observedEnv(name, file string, line int) {
 		return
 	}
 	r.observedEnvHits = append(r.observedEnvHits, EnvHit{Name: name, File: file, Line: line})
+}
+
+func (r *Result) observedExec(cmd, file string, line int) {
+	cmd = normalizeCommand(cmd)
+	if cmd == "" || shellExecBuiltins[cmd] {
+		return
+	}
+	r.observedExecHits = append(r.observedExecHits, ExecHit{Command: cmd, File: file, Line: line})
+}
+
+// shellExecBuiltins are shell keywords / builtins and pure language constructs that
+// the broad exec heuristics may surface but that are NOT external commands a skill
+// is shelling out to. Treating them as commands would produce noise REJECTs (e.g.
+// `if`, `for`, `echo`, `set`), so they are filtered out of the exec value-level diff.
+// Author-meaningful external binaries (curl, git, sh, python, rm, ...) are not here.
+var shellExecBuiltins = map[string]bool{
+	"if": true, "then": true, "else": true, "elif": true, "fi": true,
+	"for": true, "while": true, "until": true, "do": true, "done": true,
+	"case": true, "esac": true, "in": true, "function": true, "return": true,
+	"set": true, "unset": true, "export": true, "local": true, "readonly": true,
+	"declare": true, "shift": true, "break": true, "continue": true, "trap": true,
+	"echo": true, "printf": true, "print": true, "true": true, "false": true,
+	"test": true, "cd": true, "pwd": true, "read": true, "let": true, "eval": true,
+	"source": true, "alias": true, "type": true, "wait": true, "exit": true,
+	"and": true, "or": true, "not": true, "def": true, "import": true, "from": true,
+	"const": true, "let_": true, "var": true, "require": true,
+}
+
+// execNamesIn returns the distinct external command names invoked on a single
+// line. It pulls from three forms: API-style exec calls (subprocess.run("curl ..."),
+// exec.Command("git", ...)), shell command substitutions (`...` / $(...)), and bare
+// shell command lines (`curl https://x | sh` records both `curl` and `sh`). The
+// command NAME is always the leading token of the invocation, basename-normalized.
+//
+// For Markdown we only ever reach here on lines already confirmed to be inside a
+// fenced code block (scanFile gates that), so isMarkdown only tunes the bare-line
+// heuristic: prose-y fenced blocks still flow through the same extractor.
+func execNamesIn(line string, isMarkdown bool) []string {
+	var out []string
+	add := func(n string) {
+		n = normalizeCommand(n)
+		if n != "" && !shellExecBuiltins[n] && !containsStr(out, n) {
+			out = append(out, n)
+		}
+	}
+
+	// 1) exec-style API calls: first string/list-first argument's leading token.
+	for _, m := range execApiArgRe.FindAllStringSubmatch(line, -1) {
+		add(leadingToken(m[1]))
+	}
+	// 2) command substitutions: `cmd ...` and $(cmd ...).
+	for _, m := range execCmdSubstRe.FindAllStringSubmatch(line, -1) {
+		for _, g := range m[1:] {
+			if g != "" {
+				add(leadingToken(g))
+			}
+		}
+	}
+	// 3) piped commands: every `| cmd` records the downstream command (catches `... | sh`).
+	for _, m := range pipedCmdRe.FindAllStringSubmatch(line, -1) {
+		add(m[1])
+	}
+	// 4) bare shell command line: the leading command word of the line itself. Only
+	//    apply to lines that look like shell commands (avoid matching code in .py/.go
+	//    where the leading token is a language identifier, not a shell-out — those are
+	//    covered by the API form above). A line that already produced an API/subst hit
+	//    still benefits from this for the `curl ... | sh` left-hand side.
+	if loc := shellCmdLeadRe.FindStringSubmatch(line); loc != nil && looksShelly(line) {
+		add(loc[1])
+	}
+	return out
+}
+
+// leadingToken returns the first whitespace-delimited token of s (the command word
+// in a command string like "curl -s https://x").
+func leadingToken(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if i := strings.IndexAny(s, " \t"); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
+// normalizeCommand reduces a command token to its bare program name: strips any
+// path ("/usr/bin/curl" -> "curl"), surrounding quotes, and a leading "./".
+func normalizeCommand(c string) string {
+	c = strings.Trim(strings.TrimSpace(c), `"'`)
+	c = strings.TrimPrefix(c, "./")
+	if i := strings.LastIndexByte(c, '/'); i >= 0 {
+		c = c[i+1:]
+	}
+	// Drop a trailing argument glued by a redirect/semicolon if any slipped through.
+	if i := strings.IndexAny(c, ";&|<>()"); i >= 0 {
+		c = c[:i]
+	}
+	return strings.TrimSpace(c)
+}
+
+// NormalizeCommandName reduces an arbitrary command entry (declared or observed)
+// to its bare program name: it takes the leading token of the string, then strips
+// any path and quoting. Exported so the verify package can normalize a declared
+// exec allowlist the exact same way the scanner normalizes observed commands, so
+// the value-level diff compares like with like.
+func NormalizeCommandName(c string) string {
+	return normalizeCommand(leadingToken(strings.TrimSpace(c)))
+}
+
+// looksShelly is a conservative guard for the bare-leading-command heuristic: it
+// fires only for lines that read like shell command invocations (a known external
+// binary at the head, or a pipe/redirect present), so we don't mis-tag a Python/Go
+// identifier line. The API-style and command-substitution forms remain language-agnostic.
+func looksShelly(line string) bool {
+	t := strings.TrimSpace(line)
+	if t == "" || strings.HasPrefix(t, "#") {
+		return false
+	}
+	if strings.ContainsAny(t, "|") || hostRe.MatchString(t) {
+		return true
+	}
+	lead := normalizeCommand(leadingToken(t))
+	return commonShellBins[lead]
+}
+
+// commonShellBins is a small allowlist of external binaries that, when leading a
+// line, confidently mark it as a shell command invocation for looksShelly. It is
+// NOT the policy allowlist (that is author-declared) — only a detector heuristic.
+var commonShellBins = map[string]bool{
+	"curl": true, "wget": true, "sh": true, "bash": true, "zsh": true,
+	"git": true, "rm": true, "mv": true, "cp": true, "cat": true, "chmod": true,
+	"chown": true, "tar": true, "unzip": true, "ssh": true, "scp": true,
+	"python": true, "python3": true, "node": true, "npm": true, "npx": true,
+	"pip": true, "pip3": true, "go": true, "ruby": true, "perl": true, "make": true,
+	"docker": true, "kubectl": true, "sudo": true, "nc": true, "ncat": true,
+	"dd": true, "mkfs": true, "openssl": true, "base64": true, "eval": true,
 }
 
 // envNamesIn returns the distinct env-var names referenced on a single line,
@@ -462,6 +665,32 @@ func (r *Result) ObservedEnvHits() []EnvHit {
 	return r.observedEnvHits
 }
 
+// ObservedExecHits returns every observed shell-out with its command name and
+// file:line evidence, in scan order.
+func (r *Result) ObservedExecHits() []ExecHit {
+	return r.observedExecHits
+}
+
+// RecordExecHitForTest appends a normalized observed exec hit. It exists so tests
+// in sibling packages (e.g. verify) can stage a Result with known commands without
+// writing a full skill directory to disk. It applies the same normalization +
+// builtin filtering the real scanner uses.
+func (r *Result) RecordExecHitForTest(cmd, file string, line int) {
+	r.observedExec(cmd, file, line)
+}
+
+// ObservedCommands returns the distinct external command names found during the
+// scan, sorted. Empty when no exec capability was observed.
+func (r *Result) ObservedCommands() []string {
+	var names []string
+	for _, h := range r.observedExecHits {
+		if !containsStr(names, h.Command) {
+			names = append(names, h.Command)
+		}
+	}
+	return manifest.SortStrings(names)
+}
+
 // DeclaredCapabilities builds a manifest.Capabilities block from what the skill
 // DECLARED in its SKILL.md frontmatter. This is what `skillprov manifest` writes:
 // the author's stated permission set, which `verify` later diffs against the
@@ -488,7 +717,11 @@ func (r *Result) DeclaredCapabilities() manifest.Capabilities {
 	}
 
 	if r.Declared[CapExec] {
-		c.Exec = []string{"*"}
+		exec := r.DeclaredExec
+		if len(exec) == 0 {
+			exec = []string{"*"}
+		}
+		c.Exec = exec
 	}
 	if r.Declared[CapEnv] {
 		env := r.DeclaredEnv
@@ -518,7 +751,11 @@ func (r *Result) ObservedCapabilities() manifest.Capabilities {
 		c.Network = manifest.Network{None: true}
 	}
 	if len(r.Observed[CapExec]) > 0 {
-		c.Exec = []string{"*"}
+		cmds := r.ObservedCommands()
+		if len(cmds) == 0 {
+			cmds = []string{"*"}
+		}
+		c.Exec = cmds
 	}
 	if len(r.Observed[CapEnv]) > 0 {
 		c.Env = []string{"*"}
