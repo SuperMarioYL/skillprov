@@ -13,6 +13,13 @@ import (
 	"github.com/SuperMarioYL/skillprov/cmd"
 )
 
+// version is the build's version string. It defaults to "dev" for a local
+// `go build`; goreleaser stamps the released version into it via the
+// `-X main.version={{.Version}}` ldflag in .goreleaser.yaml. v0.3 shipped with
+// the ldflag targeting a symbol that did not exist (no `var version` here), so
+// the stamp was a silent no-op — v0.4 declares the symbol so the ldflag lands.
+var version = "dev"
+
 func main() {
 	root := &cobra.Command{
 		Use:           "skillprov",
@@ -24,7 +31,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(cmd.ManifestCmd(), cmd.SignCmd(), cmd.VerifyCmd())
+	root.AddCommand(cmd.ManifestCmd(), cmd.SignCmd(), cmd.VerifyCmd(), cmd.VersionCmd(version))
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-17
+
+Hardens the verify core and makes the verifier self-describing.
+
+### Fixed
+
+- **m8 — manifest that omits the `network` field no longer verifies green.**
+  `declaredFromManifest` (`internal/verify/verify.go`) carried a `|| !c.Network.None`
+  clause that treated a manifest with an ABSENT `network` key (zero value
+  `{Hosts:nil, None:false}`) as declaring network. A tampered or hand-authored
+  manifest that dropped the `network` key could curl any host and still verify
+  PASS — an evasion of the literal "reject any capability the skill reaches for
+  but did not declare" promise. Network is now declared ONLY when hosts are
+  present; `exec`/`env` already handled absence correctly (`len==0` => not
+  declared), only network had the wart. New `testdata/net-undeclared` fixture.
+- **m10 — scanner skips full-line `#` comments.** `scanFile` skipped `//` and
+  `* ` comments but not `#`, so a doc comment like `# attacks use: curl | sh`
+  recorded `sh` as an observed exec command and could false-reject a skill whose
+  only `sh` mention is a comment. Markdown `#` headings were already gated out;
+  shebangs are inert.
+
+### Added
+
+- **m9 — `skillprov version` subcommand.** `.goreleaser.yaml` passed
+  `-X main.version={{.Version}}` but `main.go` declared no `var version`, so the
+  stamp was a silent no-op and the released binary had no version string and no
+  `--version`. `main.go` now owns the `var version = "dev"` symbol the ldflag
+  targets, and `cmd/version.go` exposes `skillprov version` printing
+  `skillprov <version>` (the goreleaser tag on a release binary, `dev` locally).
+
+### Changed
+
+- The stale `VERSION` file (still `0.2.0` through the v0.3.0 release) is bumped
+  to `0.4.0`.
+
 ## [0.3.0] - 2026-06-27
 
 Closes the last class-level capability hole. After v0.2 turned the network-host and

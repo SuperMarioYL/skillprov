@@ -200,12 +200,16 @@ func checkCapabilities(dir string, m *manifest.CapabilityManifest, v *Verdict) e
 func declaredFromManifest(m *manifest.CapabilityManifest) map[scan.Capability]bool {
 	d := map[scan.Capability]bool{}
 	c := m.Capabilities
-	if len(c.Network.Hosts) > 0 || !c.Network.None {
+	// Network is declared ONLY when hosts are present. A manifest that omits the
+	// network field (zero value {Hosts:nil, None:false}) or sets it to "none"
+	// does NOT declare net — so an observed net call rejects. v0.3 carried a
+	// `|| !c.Network.None` clause here that treated an ABSENT network field as
+	// declared-true: a tampered or hand-authored manifest that dropped the
+	// network key let any net call verify GREEN. That evasion is closed in v0.4
+	// (m8_net_omission_reject). exec/env already handled absence correctly
+	// (len==0 => not declared); only network had the wart.
+	if len(c.Network.Hosts) > 0 {
 		d[scan.CapNet] = true
-	}
-	// Network.None==true with no hosts means net is explicitly NOT declared.
-	if c.Network.None && len(c.Network.Hosts) == 0 {
-		d[scan.CapNet] = false
 	}
 	if len(c.Filesystem.Write) > 0 {
 		d[scan.CapFSWrite] = true

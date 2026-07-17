@@ -405,8 +405,15 @@ func (r *Result) scanFile(path, rel string) error {
 		}
 
 		// Skip obvious full-line comments to cut false positives, but keep
-		// scanning shell `#!` shebangs and inline code.
-		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "* ") {
+		// scanning shell `#!` shebangs and inline code. `//` covers C/Go/JS,
+		// `* ` covers C-block continuation lines, and `#` covers shell / Python
+		// / Ruby / PHP full-line comments — so a doc comment like
+		// `# attacks use: curl | sh` no longer surfaces `sh` as an observed exec
+		// command (v0.4, m10). Markdown `#` headings never reach here: prose
+		// lines are skipped earlier by the `if !inCodeFence { continue }` gate,
+		// so this only affects real `#` comments in source files and shell
+		// blocks inside a fenced code block.
+		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 

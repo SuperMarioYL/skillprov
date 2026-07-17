@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -284,6 +285,117 @@ func TestVerifyRejectsOffAllowlistExecCommand(t *testing.T) {
 			t.Errorf("declared host get.example.com wrongly flagged undeclared: %+v", h)
 		}
 	}
+}
+
+// v0.4 m8: a hand-authored manifest that OMITS the network field (zero-value
+// Network{Hosts:nil, None:false} after Load) must NOT be treated as declaring
+// net. v0.3's `|| !c.Network.None` clause in declaredFromManifest treated the
+// absent field as declared-true, so a skill that curls a remote host verified
+// GREEN — an evasion for tampered/hand-authored manifests. v0.4 rejects it,
+// naming the undeclared net capability. exec is declared (commands:[curl]) and
+// the script shells out only to curl, so the exec diff stays satisfied and the
+// rejection isolates the net-omission fix.
+func TestVerifyRejectsUndeclaredNetWhenManifestOmitsNetwork(t *testing.T) {
+	dir := copyTree(t, filepath.Join("..", "..", "testdata", "net-undeclared"))
+
+	res, err := scan.Scan(dir)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	digest, err := manifest.DigestDir(dir)
+	if err != nil {
+		t.Fatalf("digest: %v", err)
+	}
+
+	// Build the manifest normally, then write it WITHOUT a network key — the
+	// exact shape of a hand-authored manifest that skips the network field, so
+	// manifest.Load leaves Network at its zero value {Hosts:nil, None:false}.
+	m := &manifest.CapabilityManifest{
+		Schema: manifest.SchemaID,
+		Skill: manifest.Skill{
+			Name:    res.SkillName,
+			Version: res.SkillVersion,
+			Entry:   res.Entry,
+		},
+		Digest:       digest,
+		Capabilities: manifest.Capabilities{Exec: []string{"curl"}, Env: []string{}},
+		SBOMRef:      manifest.SBOMFile,
+	}
+	if err := writeManifestOmittingNetwork(t, dir, m); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	bom := sbom.Build(m.Skill.Name, m.Skill.Version, digest.Files)
+	if err := bom.Write(dir, manifest.SBOMFile); err != nil {
+		t.Fatalf("write sbom: %v", err)
+	}
+	priv, err := signer.LoadOrCreateKey(filepath.Join(t.TempDir(), "dev.key"))
+	if err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	payload, err := m.Canonical()
+	if err != nil {
+		t.Fatalf("canonical: %v", err)
+	}
+	if err := signer.Sign(priv, payload).Write(dir); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	v, err := Run(dir)
+	if err != nil {
+		t.Fatalf("verify run: %v", err)
+	}
+	if v.Pass {
+		t.Fatalf("net-undeclared PASSED, expected REJECTED for omitted network field")
+	}
+
+	// The undeclared capability must be net specifically.
+	ev, ok := v.Undeclared[scan.CapNet]
+	if !ok || len(ev) == 0 {
+		t.Errorf("expected undeclared %q with evidence; undeclared=%v", scan.CapNet, v.Undeclared)
+	} else if ev[0].File == "" || ev[0].Line == 0 {
+		t.Errorf("net evidence lacks file:line: %+v", ev[0])
+	}
+	// exec must NOT be undeclared — curl is on the declared commands allowlist.
+	if ev, ok := v.Undeclared[scan.CapExec]; ok && len(ev) > 0 {
+		t.Errorf("exec wrongly flagged undeclared (curl is declared): %+v", ev)
+	}
+
+	joined := joinReasons(v.Reasons)
+	if !contains(joined, "undeclared capability") || !contains(joined, "net") {
+		t.Errorf("reasons do not name the undeclared net capability:\n%s", joined)
+	}
+}
+
+// writeManifestOmittingNetwork writes m to dir's capability-manifest.json with
+// the `network` key stripped from the capabilities block. This simulates a
+// hand-authored manifest that omits the network field — the v0.3 evasion shape
+// where manifest.Load leaves Network at its zero value {Hosts:nil, None:false}
+// (UnmarshalJSON is never called for an absent key).
+func writeManifestOmittingNetwork(t *testing.T, dir string, m *manifest.CapabilityManifest) error {
+	t.Helper()
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(b, &top); err != nil {
+		return err
+	}
+	var caps map[string]json.RawMessage
+	if err := json.Unmarshal(top["capabilities"], &caps); err != nil {
+		return err
+	}
+	delete(caps, "network")
+	capsOut, err := json.Marshal(caps)
+	if err != nil {
+		return err
+	}
+	top["capabilities"] = capsOut
+	out, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, manifest.ManifestFile), append(out, '\n'), 0o644)
 }
 
 func joinReasons(rs []string) string {
