@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
+  <a href="./LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache--2.0-blue.svg"></a>
   <a href="https://github.com/SuperMarioYL/skillprov/releases"><img alt="release" src="https://img.shields.io/badge/release-v0.3.0-E03131.svg"></a>
   <a href="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SuperMarioYL/skillprov/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8.svg?logo=go&logoColor=white">
