@@ -136,7 +136,7 @@ reaches for a capability it never declared.
   gate or an install pre-hook.
 - `testdata/clean-skill` and `testdata/poisoned-skill` so the
   `sign → verify (PASS) → verify (REJECTED)` loop is reproducible out of the box.
-- Bilingual README (Chinese primary, English sibling), MIT license, and an
+- Bilingual README (Chinese primary, English sibling), Apache 2.0 license, and an
   asciinema demo cast.
 
 [0.3.0]: https://github.com/SuperMarioYL/skillprov/releases/tag/v0.3.0
