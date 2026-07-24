@@ -223,4 +223,4 @@ v0.1 明确划在范围外，免得过度承诺：
 
 欢迎提 issue 或 PR：发现误报 / 漏报、想加一个能力检测启发式，都可以开 issue 讨论。
 
-<p align="center"><sub><a href="./LICENSE">MIT</a> © 2026 SuperMarioYL</sub></p>
+<p align="center"><sub><a href="./LICENSE">Apache-2.0</a> © 2026 skillsig</sub></p>

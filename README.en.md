@@ -262,4 +262,4 @@ even in a signed skill. One Go binary, offline-first.
 https://github.com/SuperMarioYL/skillprov
 ```
 
-<p align="center"><sub><a href="./LICENSE">MIT</a> © 2026 SuperMarioYL</sub></p>
+<p align="center"><sub><a href="./LICENSE">Apache-2.0</a> © 2026 skillsig</sub></p>

