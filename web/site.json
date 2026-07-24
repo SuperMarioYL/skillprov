@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "content_version": "v0.5.0",
   "name": "skillprov",
   "github": "https://github.com/SuperMarioYL/skillprov",
   "host": "skillprov.lei6393.com",
@@ -48,15 +49,15 @@
       ]
     },
     {
-      "title": { "zh": "声明 api.github.com，挡住偷偷 curl evil.host", "en": "Declares api.github.com, blocks a quiet curl to evil.host" },
+      "title": { "zh": "声明 api.github.com——`curl evil.host` 也拦得住", "en": "Declare api.github.com — `curl evil.host` is blocked too" },
       "body": {
-        "zh": "声明一个主机白名单，不再等于「可以访问任何主机」。v0.2 起网络主机与环境变量都按值粒度校验：声明了 `api.github.com` 就挡掉对 `evil.host` 的请求；声明了 `env-vars: [TZ]` 就挡掉对 `$AWS_SECRET_ACCESS_KEY` 的读取。越界的那一条主机、那一个变量，都会被点名报红。",
-        "en": "Declaring a host allowlist no longer means 'any host is fine.' Since v0.2 both network hosts and env vars are enforced at value granularity: declaring `api.github.com` blocks a fetch to `evil.host`; declaring `env-vars: [TZ]` blocks a read of `$AWS_SECRET_ACCESS_KEY`. The off-allowlist host or variable is named and turned red."
+        "zh": "声明一个主机白名单，不再留「省掉 https:// 就绕过」的暗门——`curl evil.host`（不带协议头）curl 会当成 http 真去访问，这类无协议主机也被抓出来比对、越界即红。环境变量白名单同理，而 shell 自带的 `$_`（上一条命令的最后一个参数）不再被误判成偷读环境变量：诚实使用 `$_` 的 skill 不再被冤枉报红，越界的那个主机、那个变量才被点名。声明了什么，就只许什么。",
+        "en": "Declaring a host allowlist leaves no 'drop the https:// and slip through' back door — `curl evil.host` (no scheme) is a real call curl treats as http, and such schemeless hosts are now captured and diffed, turning red the moment they're off the allowlist. The env-var allowlist works the same way, and the shell's own `$_` (the last argument of the previous command) is no longer misread as a sneaky env-var read: an honest skill using `$_` is no longer falsely rejected — only the off-allowlist host or variable gets named. What you declare is all that's allowed."
       },
       "chips": [
-        "› 主机白名单按值校验",
-        "› 环境变量白名单按值校验",
-        "› 越界点名报红"
+        "› 无协议主机也逃不掉",
+        "› $_ 不再误报红",
+        "› 声明了什么就只许什么"
       ]
     },
     {
@@ -82,8 +83,8 @@
       "en": "Verify a skill before you install it"
     },
     "sub": {
-      "zh": "开源、MIT、无付费墙。给第三方 skill 加能力清单这件事，永不收费。",
-      "en": "Open source, MIT, no paywall. Giving a third-party skill a capability manifest is never gated."
+      "zh": "开源、Apache-2.0、无付费墙。给第三方 skill 加能力清单这件事，永不收费。",
+      "en": "Open source, Apache-2.0, no paywall. Giving a third-party skill a capability manifest is never gated."
     },
     "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
   },
