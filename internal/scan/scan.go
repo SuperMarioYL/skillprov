@@ -183,12 +183,19 @@ var hostRe = regexp.MustCompile(`(?i)https?://([a-z0-9.\-]+)`)
 // ZERO host hits for such a line. A skill declaring a finite host allowlist then
 // verified GREEN even though it reached an off-allowlist host, defeating the m4
 // host-allowlist enforcement. Feeding this capture through observedHost lets
-// checkHostAllowlist diff it. The optional `-[A-Za-z]+` flag cluster skips
-// `-s`/`-fsSL`/`-qO-` style flags so the host arg (not a flag) is captured. A
-// scheme-prefixed arg never matches here: `https://` interrupts the dotted-host
-// pattern before a TLD, so all existing scheme-prefixed fixtures are unaffected.
-// (v0.5, fix-host-allowlist-schemeless-evasion.)
-var schemelessHostRe = regexp.MustCompile(`(?i)\b(?:curl|wget)\b\s+(?:-[A-Za-z]+\s+)*([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})\b`)
+// checkHostAllowlist diff it. The flag cluster skips option tokens between the
+// command and the host arg: `-{1,2}[A-Za-z][\w-]*` admits short flags (`-s`,
+// `-fsSL`), combined short flags ending in a non-letter (`-qO-`, wget's
+// quiet+write-to-stdout), and GNU long options (`--silent`, `--output`). The
+// v0.5 cluster `(?:-[A-Za-z]+\s+)*` only matched single-dash short letter flags,
+// so `curl --silent evil.host` and `wget -qO- evil.host` recorded ZERO host hits
+// and evaded the allowlist — the very evasion the v0.5 fix targeted (v0.6,
+// m13_schemeless_host_long_option). A scheme-prefixed arg never matches here:
+// `https://` interrupts the dotted-host pattern before a TLD, so all existing
+// scheme-prefixed fixtures are unaffected. (An option that TAKES A VALUE, e.g.
+// `curl -o file host`, cannot be statically resolved across curl/wget's full
+// option surface and is left to the conservative over-detect path.)
+var schemelessHostRe = regexp.MustCompile(`(?i)\b(?:curl|wget)\b\s+(?:-{1,2}[A-Za-z][\w-]*\s+)*([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})\b`)
 
 // envNameRe captures the bare variable NAME from a shell $VAR / ${VAR} / ${VAR:-x}
 // reference. The leading capture group is just the name, so a default-value
@@ -198,8 +205,13 @@ var envNameRe = regexp.MustCompile(`\$\{?([A-Z_][A-Z0-9_]*)`)
 // getenvNameRe captures the literal env-var name passed to a getenv-style call in
 // Python / Go / Node / Ruby, e.g. os.getenv("AWS_SECRET_ACCESS_KEY"),
 // os.Getenv("X"), process.env.X, ENV["X"]. This lets the env allowlist diff name
-// the variable even outside shell scripts.
-var getenvNameRe = regexp.MustCompile(`(?i)(?:getenv|environ)\s*[\(\[]\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|ENV\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]`)
+// the variable even outside shell scripts. The first alternative also covers the
+// Python method-call form os.environ.get("X") / os.environ.get('X', default): the
+// bracket/getenv alternative below requires an open `(` or `[` immediately after
+// the receiver, so the `.get(...)` form — Python's most common env-with-default
+// idiom — yielded no name and a secret read via it slipped past the env allowlist
+// diff (v0.6, m11_env_get_name_extraction).
+var getenvNameRe = regexp.MustCompile(`(?i)(?:getenv|environ)\.get\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|(?:getenv|environ)\s*[\(\[]\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|ENV\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]`)
 
 // execCmdSubstRe pulls the command portion out of a shell command substitution —
 // backticks (`...`) or $(...) — so the leading command word can be extracted.
@@ -413,8 +425,12 @@ func (r *Result) scanFile(path, rel string) error {
 				continue
 			}
 			_ = frontmatterDone
-			// Toggle on fenced code blocks; only scan lines inside one.
-			if strings.HasPrefix(trimmed, "```") {
+			// Toggle on fenced code blocks; only scan lines inside one. Both
+			// CommonMark fence delimiters are recognized: the backtick fence
+			// (```) and the tilde fence (~~~), so code hidden behind a tilde
+			// fence is scanned rather than treated as invisible prose (v0.6,
+			// m12_markdown_tilde_fence_scan).
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 				inCodeFence = !inCodeFence
 				continue
 			}
