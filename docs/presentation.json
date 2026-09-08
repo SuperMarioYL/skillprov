@@ -1,0 +1,82 @@
+{
+  "name": "skillprov",
+  "tagline": "Check skill content and capability claims.",
+  "architecture": {
+    "title": "skillprov / data flow",
+    "nodes": [
+      {
+        "title": "Skill directory",
+        "detail": "Frontmatter and scripts"
+      },
+      {
+        "title": "Manifest and SBOM",
+        "detail": "File hashes / declarations"
+      },
+      {
+        "title": "Ed25519 bundle",
+        "detail": "Canonical manifest signature"
+      },
+      {
+        "title": "Verification",
+        "detail": "Integrity / signature / capabilities"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "process": {
+    "title": "skillprov / example workflow",
+    "steps": [
+      {
+        "title": "Copy fixtures",
+        "detail": "Temporary safe and poisoned sets"
+      },
+      {
+        "title": "Manifest and sign",
+        "detail": "Fresh local demo key"
+      },
+      {
+        "title": "Verify both",
+        "detail": "PASS and REJECTED"
+      }
+    ],
+    "result": "The clean fixture passes; undeclared capabilities reject the poisoned fixture."
+  },
+  "integrations": {
+    "title": "skillprov / supported routes",
+    "items": [
+      {
+        "title": "SKILL.md",
+        "detail": "Capability declarations"
+      },
+      {
+        "title": "Shell / text scan",
+        "detail": "Static capability evidence"
+      },
+      {
+        "title": "SHA-256 manifest",
+        "detail": "Content-lock files"
+      },
+      {
+        "title": "Ed25519",
+        "detail": "Offline signing and verification"
+      },
+      {
+        "title": "CycloneDX subset",
+        "detail": "File inventory"
+      }
+    ]
+  }
+}

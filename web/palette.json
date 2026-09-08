@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "e6a856-dae76a-f6bbac-0235c8c0c05f",
+  "identity": "https://github.com/supermarioyl/skillprov",
+  "primary": "#e6a856",
+  "secondary": "#dae76a",
+  "highlight": "#f6bbac",
+  "dark": {
+    "bg": "#0a0a0d",
+    "panel": "#131417",
+    "code": "#141213",
+    "ink": "#fdf1ee",
+    "muted": "#b2ada8",
+    "line": "#3a2d1d",
+    "primary": "#e6a856",
+    "secondary": "#dae76a",
+    "highlight": "#f6bbac",
+    "accent": "#e6a856",
+    "buttonStart": "#976f39",
+    "buttonEnd": "#757b39",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#fefcf9",
+    "panel": "#fefbf7",
+    "code": "#fdf9f3",
+    "ink": "#27211c",
+    "muted": "#726e6b",
+    "line": "#f7e4cb",
+    "primary": "#936c37",
+    "secondary": "#717837",
+    "highlight": "#8d6b63",
+    "accent": "#936c37",
+    "buttonStart": "#976f39",
+    "buttonEnd": "#757b39",
+    "buttonText": "#ffffff"
+  }
+}

