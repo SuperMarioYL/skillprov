@@ -104,6 +104,10 @@
           "alt": {
             "zh": "在临时目录里为自带 clean-skill 和 poisoned-skill 生成清单、签名并验证。签名与哈希是真实计算；毒化脚本只被读取。输出移除了 ANSI 样式字符。",
             "en": "Generate manifests, sign and verify temporary copies of clean-skill and poisoned-skill. Signatures and hashes are real computations; poisoned scripts are only read. The script removes ANSI styling from displayed output."
+          },
+          "mobile": {
+            "light": "/assets/presentation/process-mobile-light.svg",
+            "dark": "/assets/presentation/process-mobile-dark.svg"
           }
         }
       },
@@ -122,6 +126,10 @@
           "alt": {
             "zh": "scan 从 SKILL.md frontmatter 读取声明并扫描文件中的能力线索。manifest 保存 SHA-256 文件锁与声明，sbom 写 CycloneDX 子集；sign 生成 Ed25519 bundle。verify 重算文件集合、校验签名，再按能力类别与 host/env/exec 值比对。",
             "en": "scan reads declarations from SKILL.md frontmatter and searches files for capability evidence. manifest saves SHA-256 file locks and declarations, while sbom emits a CycloneDX subset. sign produces an Ed25519 bundle. verify compares file sets, checks the signature and compares capability classes plus host/env/exec values."
+          },
+          "mobile": {
+            "light": "/assets/presentation/architecture-mobile-light.svg",
+            "dark": "/assets/presentation/architecture-mobile-dark.svg"
           }
         }
       },
@@ -140,6 +148,10 @@
           "alt": {
             "zh": "verify 可作为 CI 或安装前置命令；它不执行 Skill，也不在运行时限制网络或文件系统。主机、环境变量与 exec 命令支持值级声明；命令参数与混淆脚本仍超出当前静态检查能力。",
             "en": "verify can be used in CI or before installation. It does not execute a skill or restrict network/filesystem access at runtime. Hosts, environment variables and exec commands support value-level declarations; command arguments and obfuscated scripts exceed current static checks."
+          },
+          "mobile": {
+            "light": "/assets/presentation/integrations-mobile-light.svg",
+            "dark": "/assets/presentation/integrations-mobile-dark.svg"
           }
         }
       }
