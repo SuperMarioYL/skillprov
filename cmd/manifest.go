@@ -12,8 +12,10 @@ import (
 	"github.com/SuperMarioYL/skillprov/internal/scan"
 )
 
-// ManifestCmd implements `skillprov manifest <skill-dir>`.
-func ManifestCmd() *cobra.Command {
+// ManifestCmd implements `skillprov manifest <skill-dir>`. version is the
+// build's version string (main's `var version`, goreleaser-stamped on release
+// binaries) so the emitted SBOM records its true generator.
+func ManifestCmd(version string) *cobra.Command {
 	var showObserved bool
 	c := &cobra.Command{
 		Use:   "manifest <skill-dir>",
@@ -50,7 +52,7 @@ func ManifestCmd() *cobra.Command {
 				return fmt.Errorf("write manifest: %w", err)
 			}
 
-			bom := sbom.Build(m.Skill.Name, m.Skill.Version, digest.Files)
+			bom := sbom.Build(m.Skill.Name, m.Skill.Version, version, digest.Files)
 			if err := bom.Write(dir, manifest.SBOMFile); err != nil {
 				return fmt.Errorf("write sbom: %w", err)
 			}

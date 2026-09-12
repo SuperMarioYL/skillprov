@@ -9,7 +9,7 @@
 
 **生成内容清单、签名与 SBOM，验证文件完整性，并找出静态扫描中未声明的能力。**
 
-`v0.6.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
+`v0.7.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
 
 [Website](https://skillprov.lei6393.com) · [Demo record](docs/demo-results.json)
 
@@ -114,6 +114,8 @@ frontmatter 的 capabilities 可声明 net、fs-write、exec、env，以及 host
 ## 路线图与范围
 
 当前包含本地签名、内容验证、值级能力比较和组合式 Action。外部信任根、keyless 签名与更强 AST 检测属于后续方向。
+
+v0.7 收紧三处已验证的缺口：主机白名单比对覆盖 socket 连接与拨号地址（`s.connect(("host", 443))`、`net.Dial("tcp", "host:443")`），改用 socket API 不再能绕过；markdown 围栏只被同种闭合符号关闭（``` 块内的 `~~~` 行是内容，遵循 CommonMark），嵌套对侧符号不再让代码对扫描器隐形；SBOM 工具元数据记录真实生成器版本，不再停留在 0.1.0 占位符。
 
 - 公钥随 bundle 提供，当前验证不自动建立发布者身份信任；签名有效不代表 Skill 安全。
 - 这是静态启发式检查，不是运行时沙箱；PASS 不能证明未检测到的行为不存在。

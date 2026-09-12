@@ -31,7 +31,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(cmd.ManifestCmd(), cmd.SignCmd(), cmd.VerifyCmd(), cmd.VersionCmd(version))
+	root.AddCommand(cmd.ManifestCmd(version), cmd.SignCmd(), cmd.VerifyCmd(), cmd.VersionCmd(version))
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

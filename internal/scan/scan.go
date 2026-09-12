@@ -151,6 +151,11 @@ var signatures = []signature{
 	{CapNet, regexp.MustCompile(`(?i)\b(net/http|http\.Get|http\.Post|http\.NewRequest)\b`)},
 	{CapNet, regexp.MustCompile(`(?i)\bsocket\.(socket|create_connection)\b`)},
 	{CapNet, regexp.MustCompile(`(?i)\bnet\.Dial\b`)},
+	// socket-style connect tuple: s.connect(("host", port)) — the Python/JS
+	// idiom for opening a raw connection with no URL anywhere on the line. The
+	// line is a real network call, so it must fire the net class for the host
+	// feed below to have anything to diff (v0.7, fix-socket-dial-host-capture).
+	{CapNet, regexp.MustCompile(`(?i)\bconnect\s*\(\s*\(\s*['"]`)},
 	// fs-write
 	{CapFSWrite, regexp.MustCompile(`(?i)\bopen\s*\([^)]*['"][wa]\+?['"]`)},
 	{CapFSWrite, regexp.MustCompile(`(?i)\b(os\.Create|os\.WriteFile|ioutil\.WriteFile)\b`)},
@@ -196,6 +201,17 @@ var hostRe = regexp.MustCompile(`(?i)https?://([a-z0-9.\-]+)`)
 // `curl -o file host`, cannot be statically resolved across curl/wget's full
 // option surface and is left to the conservative over-detect path.)
 var schemelessHostRe = regexp.MustCompile(`(?i)\b(?:curl|wget)\b\s+(?:-{1,2}[A-Za-z][\w-]*\s+)*([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})\b`)
+
+// connectHostRe captures the host of a network call that carries no URL: the
+// first element of a socket connect tuple (s.connect(("evil.host", 443)),
+// socket.create_connection(("evil.host", 80))) and the address argument of a
+// dial (net.Dial("tcp", "evil.host:443")). The CapNet signatures fire for these
+// APIs, but hostRe (https?:// only) and schemelessHostRe (curl/wget only) never
+// extracted the host, so a skill with a finite host allowlist verified GREEN
+// while connecting to an off-allowlist host over a raw socket — the same
+// value-level evasion family the schemeless-host fixes closed for curl/wget
+// (v0.7, fix-socket-dial-host-capture). Two capture groups, one per form.
+var connectHostRe = regexp.MustCompile(`(?i)\b(?:create_connection|connect)\s*\(\s*\(\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})['"]\s*[,)]|\bdial\w*\s*\(\s*['"][a-z]+['"]\s*,\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})(?::\d+)?['"]`)
 
 // envNameRe captures the bare variable NAME from a shell $VAR / ${VAR} / ${VAR:-x}
 // reference. The leading capture group is just the name, so a default-value
@@ -405,6 +421,7 @@ func (r *Result) scanFile(path, rel string) error {
 	inFrontmatter := false
 	frontmatterDone := false
 	inCodeFence := false
+	fenceMarker := "" // the delimiter that opened the open fence ("```" or "~~~")
 
 	for sc.Scan() {
 		lineNo++
@@ -426,12 +443,23 @@ func (r *Result) scanFile(path, rel string) error {
 			}
 			_ = frontmatterDone
 			// Toggle on fenced code blocks; only scan lines inside one. Both
-			// CommonMark fence delimiters are recognized: the backtick fence
-			// (```) and the tilde fence (~~~), so code hidden behind a tilde
-			// fence is scanned rather than treated as invisible prose (v0.6,
-			// m12_markdown_tilde_fence_scan).
-			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-				inCodeFence = !inCodeFence
+			// CommonMark fence delimiters open a block: the backtick fence
+			// (```) and the tilde fence (~~~) (v0.6, m12_markdown_tilde_fence_scan).
+			// A fence is closed only by its OWN delimiter kind — CommonMark's
+			// close rule — so a ~~~ line inside a ```-fenced block is CONTENT,
+			// and a ``` line inside a ~~~-fenced block is content. v0.6 shared
+			// one toggle for both delimiters, letting the opposite marker end
+			// the block early and hide every code line after it from the
+			// scanner (v0.7, fix-markdown-fence-close-delimiter).
+			if !inCodeFence {
+				if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+					inCodeFence = true
+					fenceMarker = trimmed[:3]
+					continue
+				}
+			} else if strings.HasPrefix(trimmed, fenceMarker) {
+				inCodeFence = false
+				fenceMarker = ""
 				continue
 			}
 			if !inCodeFence {
@@ -476,6 +504,17 @@ func (r *Result) scanFile(path, rel string) error {
 				// so the host allowlist diff cannot be evaded by dropping the scheme.
 				for _, h := range schemelessHostRe.FindAllStringSubmatch(line, -1) {
 					r.observedHost(h[1], rel, lineNo)
+				}
+				// And the host of a URL-less socket connect tuple or dial address
+				// (s.connect(("evil.host", 443)), net.Dial("tcp", "evil.host:443")),
+				// so the allowlist cannot be evaded by switching from curl to the
+				// socket API (v0.7, fix-socket-dial-host-capture).
+				for _, h := range connectHostRe.FindAllStringSubmatch(line, -1) {
+					for _, g := range h[1:] {
+						if g != "" {
+							r.observedHost(g, rel, lineNo)
+						}
+					}
 				}
 			}
 			if sig.cap == CapEnv {

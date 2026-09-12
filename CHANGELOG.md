@@ -4,6 +4,70 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-13
+
+Closes three verified scanner/attestation gaps found by post-ship review of
+v0.6.0.
+
+### Fixed
+
+- **The host allowlist can no longer be evaded via the socket API.** The net
+  class signatures already fired for `socket.create_connection(...)`,
+  `s.connect(("host", port))` and `net.Dial("tcp", "host:port")`, but the host
+  extraction feeds only knew `https?://` URLs and `curl`/`wget` args — so a
+  skill with a finite host allowlist that connected to an off-allowlist host
+  over a raw socket recorded zero host hits and verified green. The scanner now
+  captures the host from socket connect tuples and dial addresses and feeds it
+  to the host allowlist diff, which names and rejects it. A bare
+  `connect(("host", port))` tuple line also fires the net class itself.
+- **A markdown fence is closed only by its own delimiter kind (CommonMark).**
+  The v0.6 fence toggle treated ``` and `~~~` as one shared on/off switch, so a
+  `~~~` line inside a ```-fenced block (content, per CommonMark) silently ended
+  the block and every code line after it was skipped as prose — a net + exec
+  body scanned as completely clean. The scanner now tracks the opening fence
+  delimiter and closes only on the same kind; the spurious re-open over
+  following prose is gone too.
+- **The SBOM records its real generator version.** Every emitted
+  `sbom.cdx.json` claimed `metadata.tools[0].version: "0.1.0"` — the placeholder
+  hardcoded in `sbom.Build` while the project shipped v0.2 through v0.6. The
+  build's version string (goreleaser-stamped on release binaries, `dev` on a
+  local `go build`) is now threaded through `skillprov manifest` into the SBOM
+  tool metadata.
+
+## [0.6.0] - 2026-08-28
+
+Closes three value-level scanner under-detections.
+
+### Fixed
+
+- **`os.environ.get("X")` yields the env-var name.** The env allowlist diff
+  missed Python's most common env-with-default idiom: the class signature fired
+  but no name was captured, so a secret read via `.get()` verified green. The
+  name-extraction regex now covers the method-call form.
+- **`~~~`-fenced markdown code blocks are scanned.** CommonMark tilde fences
+  were treated as prose, so code hidden behind one was invisible to the scan.
+- **Flagged schemeless `curl`/`wget` lines record their host.** GNU long
+  options (`--silent`) and combined short flags ending in a non-letter (`-qO-`)
+  made the v0.5 schemeless-host capture match zero, re-opening the evasion.
+
+## [0.5.0] - 2026-07-24
+
+Closes two verified enforcement gaps and adopts Apache-2.0.
+
+### Fixed
+
+- **Schemeless host-allowlist evasion.** `curl evil.host` (no `https://`) is a
+  real network call, but the host extractor only matched scheme-prefixed URLs —
+  the off-allowlist host was never named and the skill verified green. Bare
+  dotted hostnames passed to `curl`/`wget` are now captured and diffed.
+- **`$_` shell special parameter no longer false-flagged.** The shell's
+  last-argument parameter was recorded as an undeclared env-var read, false-
+  rejecting honest skills that use it with a finite env allowlist.
+
+### Changed
+
+- License adopted as Apache-2.0 (README badge + docs).
+
 ## [0.4.0] - 2026-07-17
 
 Hardens the verify core and makes the verifier self-describing.

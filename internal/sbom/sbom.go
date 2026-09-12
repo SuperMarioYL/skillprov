@@ -55,7 +55,12 @@ type Hash struct {
 
 // Build constructs a BOM from the skill's name/version and its file digests.
 // fileDigests maps relative path -> hex sha256 (the same map the manifest carries).
-func Build(skillName, skillVersion string, fileDigests map[string]string) *BOM {
+// toolVersion is the skillprov build version recorded as the generator in the
+// SBOM metadata — the document must tell the truth about what produced it, so
+// the version is threaded in from main's build stamp rather than hardcoded (a
+// hardcoded "0.1.0" survived every release from v0.1 through v0.6 and made every
+// emitted SBOM claim a generator that no longer existed; v0.7 fix).
+func Build(skillName, skillVersion, toolVersion string, fileDigests map[string]string) *BOM {
 	paths := make([]string, 0, len(fileDigests))
 	for p := range fileDigests {
 		paths = append(paths, p)
@@ -81,7 +86,7 @@ func Build(skillName, skillVersion string, fileDigests map[string]string) *BOM {
 		Metadata: Metadata{
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
 			Tools: []Tool{
-				{Vendor: "skillprov", Name: "skillprov", Version: "0.1.0"},
+				{Vendor: "skillprov", Name: "skillprov", Version: toolVersion},
 			},
 			Component: Component{
 				Type:    "application",

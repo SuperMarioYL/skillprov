@@ -14,7 +14,7 @@ func TestBuildCycloneDXSubset(t *testing.T) {
 		"scripts/run.sh":   "bb",
 		"scripts/other.sh": "cc",
 	}
-	bom := Build("demo-skill", "1.2.3", files)
+	bom := Build("demo-skill", "1.2.3", "9.9.9", files)
 
 	if bom.BOMFormat != "CycloneDX" {
 		t.Errorf("bomFormat = %q, want CycloneDX", bom.BOMFormat)
@@ -38,10 +38,25 @@ func TestBuildCycloneDXSubset(t *testing.T) {
 	}
 }
 
+// The SBOM tool metadata must record the generator version it was given, not a
+// frozen placeholder — through v0.6 every emitted SBOM claimed "0.1.0" because
+// the version was hardcoded in Build (v0.7, fix-sbom-tool-version-drift).
+func TestBuildRecordsToolVersion(t *testing.T) {
+	for _, v := range []string{"dev", "0.7.0", "v1.2.3-rc1"} {
+		bom := Build("s", "1.0.0", v, map[string]string{"a": "aa"})
+		if len(bom.Metadata.Tools) != 1 {
+			t.Fatalf("tools = %d, want 1", len(bom.Metadata.Tools))
+		}
+		if got := bom.Metadata.Tools[0].Version; got != v {
+			t.Errorf("tool version = %q, want %q", got, v)
+		}
+	}
+}
+
 // The serialized SBOM must be valid JSON and round-trip.
 func TestSBOMWriteValidJSON(t *testing.T) {
 	dir := t.TempDir()
-	bom := Build("s", "0.1.0", map[string]string{"a": "0badc0de"})
+	bom := Build("s", "0.1.0", "dev", map[string]string{"a": "0badc0de"})
 	if err := bom.Write(dir, "sbom.cdx.json"); err != nil {
 		t.Fatalf("write: %v", err)
 	}
