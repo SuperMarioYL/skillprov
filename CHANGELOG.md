@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-18
+
+Closes two verified gaps found by post-ship review of v0.7.0.
+
+### Fixed
+
+- **The host allowlist can no longer be evaded through Python's
+  `http.client` constructor API.** The net class already fired for
+  `http.client.HTTPConnection(...)`, but the host extraction feeds only knew
+  `https?://` URLs, `curl`/`wget` arguments, and socket connect tuples /
+  dial addresses — so a skill with a finite host allowlist that connected to
+  an off-allowlist host through `HTTPConnection("evil.host", 443)` recorded
+  zero host hits and verified green. The bare `HTTPConnection` /
+  `HTTPSConnection` call after a from-import fired no net signature at all.
+  The constructor form now fires the net class itself, and its first quoted
+  host argument is captured and fed to the host allowlist diff, which names
+  and rejects it.
+- **A malformed SKILL.md frontmatter is an error, not a silent wipe.**
+  `skillprov manifest` discarded the frontmatter YAML parse error, so a
+  malformed frontmatter (e.g. a tab-indented capabilities block) silently
+  parsed to an empty declaration set: the emitted manifest misrepresented
+  what the author declared, and `verify` then rejected the skill for
+  capabilities the author DID declare. The parse error now surfaces as a
+  clean one-line error naming `SKILL.md frontmatter`.
+
+### Changed
+
+- Every version surface is bumped in lockstep (VERSION, README badges,
+  CHANGELOG, web/site.json content versions, and the site demo record in
+  `docs/demo-results.json`, which had lagged behind at 0.6.0). A new
+  cross-surface test asserts the surfaces always equal VERSION so the drift
+  class cannot recur.
+
 ## [0.7.0] - 2026-09-13
 
 Closes three verified scanner/attestation gaps found by post-ship review of

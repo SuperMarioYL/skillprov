@@ -11,6 +11,7 @@ package scan
 
 import (
 	"bufio"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -156,6 +157,13 @@ var signatures = []signature{
 	// line is a real network call, so it must fire the net class for the host
 	// feed below to have anything to diff (v0.7, fix-socket-dial-host-capture).
 	{CapNet, regexp.MustCompile(`(?i)\bconnect\s*\(\s*\(\s*['"]`)},
+	// Python http.client constructor call: HTTPConnection("host", port) /
+	// HTTPSConnection("host", port). The httplib/http.client class signature
+	// above fires only when the qualified http.client receiver is on the line;
+	// after `from http.client import HTTPConnection` the bare constructor call
+	// carries no such token, so the constructor form must fire the net class
+	// itself for the host feed below to run (v0.8, fix-httpclient-conn-host-capture).
+	{CapNet, regexp.MustCompile(`(?i)\bhttps?connection\s*\(`)},
 	// fs-write
 	{CapFSWrite, regexp.MustCompile(`(?i)\bopen\s*\([^)]*['"][wa]\+?['"]`)},
 	{CapFSWrite, regexp.MustCompile(`(?i)\b(os\.Create|os\.WriteFile|ioutil\.WriteFile)\b`)},
@@ -204,14 +212,20 @@ var schemelessHostRe = regexp.MustCompile(`(?i)\b(?:curl|wget)\b\s+(?:-{1,2}[A-Z
 
 // connectHostRe captures the host of a network call that carries no URL: the
 // first element of a socket connect tuple (s.connect(("evil.host", 443)),
-// socket.create_connection(("evil.host", 80))) and the address argument of a
-// dial (net.Dial("tcp", "evil.host:443")). The CapNet signatures fire for these
-// APIs, but hostRe (https?:// only) and schemelessHostRe (curl/wget only) never
-// extracted the host, so a skill with a finite host allowlist verified GREEN
-// while connecting to an off-allowlist host over a raw socket — the same
-// value-level evasion family the schemeless-host fixes closed for curl/wget
-// (v0.7, fix-socket-dial-host-capture). Two capture groups, one per form.
-var connectHostRe = regexp.MustCompile(`(?i)\b(?:create_connection|connect)\s*\(\s*\(\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})['"]\s*[,)]|\bdial\w*\s*\(\s*['"][a-z]+['"]\s*,\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})(?::\d+)?['"]`)
+// socket.create_connection(("evil.host", 80)), the address argument of a
+// dial (net.Dial("tcp", "evil.host:443")), and the first quoted positional
+// argument of a Python http.client constructor (HTTPConnection("evil.host",
+// 443) / HTTPSConnection("evil.host", 443)). The CapNet signatures fire for
+// these APIs, but hostRe (https?:// only) and schemelessHostRe (curl/wget
+// only) never extracted the host, so a skill with a finite host allowlist
+// verified GREEN while connecting to an off-allowlist host over a raw socket
+// — the same value-level evasion family the schemeless-host fixes closed for
+// curl/wget (v0.7, fix-socket-dial-host-capture; v0.8,
+// fix-httpclient-conn-host-capture). Three capture groups, one per form. The
+// (?i) flag makes the constructor alternative `https?connection` match both
+// HTTPConnection and HTTPSConnection; the keyword form
+// HTTPConnection(host=...) is left to the conservative over-detect path.
+var connectHostRe = regexp.MustCompile(`(?i)\b(?:create_connection|connect)\s*\(\s*\(\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})['"]\s*[,)]|\bdial\w*\s*\(\s*['"][a-z]+['"]\s*,\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})(?::\d+)?['"]|\bhttps?connection\s*\(\s*['"]([a-z0-9][a-z0-9.\-]*\.[a-z]{2,})['"]`)
 
 // envNameRe captures the bare variable NAME from a shell $VAR / ${VAR} / ${VAR:-x}
 // reference. The leading capture group is just the name, so a default-value
@@ -319,7 +333,16 @@ func (r *Result) parseSkillMD(dir string) error {
 	fm := extractFrontmatter(b)
 	var f skillFrontmatter
 	if len(fm) > 0 {
-		_ = yaml.Unmarshal(fm, &f) // a malformed frontmatter just means nothing declared
+		// A malformed frontmatter is an error, not "nothing declared": silently
+		// swallowing the yaml error dropped the author's declarations to the
+		// empty set, so `skillprov manifest` wrote an attestation that
+		// misrepresented what the author declared and `skillprov verify`
+		// false-rejected the skill with a misleading "undeclared capability"
+		// message (v0.8, fix-frontmatter-yaml-error-swallowed). Non-YAML keys
+		// belonging to other tools stay ignored — only hard yaml errors surface.
+		if err := yaml.Unmarshal(fm, &f); err != nil {
+			return fmt.Errorf("SKILL.md frontmatter: %w", err)
+		}
 	}
 	r.SkillName = f.Name
 	r.SkillVersion = f.Version
@@ -505,10 +528,12 @@ func (r *Result) scanFile(path, rel string) error {
 				for _, h := range schemelessHostRe.FindAllStringSubmatch(line, -1) {
 					r.observedHost(h[1], rel, lineNo)
 				}
-				// And the host of a URL-less socket connect tuple or dial address
-				// (s.connect(("evil.host", 443)), net.Dial("tcp", "evil.host:443")),
-				// so the allowlist cannot be evaded by switching from curl to the
-				// socket API (v0.7, fix-socket-dial-host-capture).
+				// And the host of a URL-less socket connect tuple, dial address, or
+				// http.client constructor call (s.connect(("evil.host", 443)),
+				// net.Dial("tcp", "evil.host:443"), HTTPConnection("evil.host", 443)),
+				// so the allowlist cannot be evaded by switching from curl to one of
+				// those APIs (v0.7, fix-socket-dial-host-capture; v0.8,
+				// fix-httpclient-conn-host-capture).
 				for _, h := range connectHostRe.FindAllStringSubmatch(line, -1) {
 					for _, g := range h[1:] {
 						if g != "" {

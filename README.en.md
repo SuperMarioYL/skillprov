@@ -9,7 +9,7 @@
 
 **Generate manifests, signatures and SBOMs, verify file integrity and identify statically observed undeclared capabilities.**
 
-`v0.7.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
+`v0.8.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
 
 [Website](https://skillprov.lei6393.com) · [Demo record](docs/demo-results.json)
 
@@ -116,6 +116,8 @@ Frontmatter capabilities declare net, fs-write, exec and env with hosts, env-var
 Local signing, integrity checks, value-level capability comparison and a composite Action are implemented. External trust roots, keyless signing and stronger AST detection remain future directions.
 
 v0.7 tightens three verified gaps: the host-allowlist comparison now covers socket connects and dial addresses (`s.connect(("host", 443))`, `net.Dial("tcp", "host:443")`), so switching from curl to the socket API no longer evades it; a markdown code fence closes only on its own delimiter kind (a `~~~` line inside a ``` block is content, per CommonMark), so a nested opposite marker can no longer hide code from the scanner; and the SBOM tool metadata records the real generator version instead of the frozen 0.1.0 placeholder.
+
+v0.8 tightens two verified gaps: the host-allowlist comparison now covers Python's `http.client` constructor (`HTTPConnection("host", 443)` and `HTTPSConnection(...)`, including the bare call after a from-import), so switching to that API no longer evades it; and a malformed SKILL.md frontmatter is no longer silently swallowed — a frontmatter YAML error used to parse to an empty declaration set, distorting the emitted manifest and misleading the rejection message, while now both manifest and verify exit with a clear one-line error.
 
 - The public key travels in the bundle; current verification does not establish publisher identity trust. A valid signature does not establish skill safety.
 - This is static heuristic checking, not a runtime sandbox. PASS does not establish the absence of undetected behavior.
