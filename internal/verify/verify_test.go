@@ -18,7 +18,13 @@ import (
 // set (the production path) — verify then re-scans and diffs against it.
 func stageSignedSkill(t *testing.T, name string) string {
 	t.Helper()
-	dir := copyTree(t, filepath.Join("..", "..", "testdata", name))
+	return stageSignedDir(t, copyTree(t, filepath.Join("..", "..", "testdata", name)))
+}
+
+// stageSignedDir runs the real manifest -> sbom -> sign pipeline over an
+// already-populated temp skill directory, leaving it ready for verify.
+func stageSignedDir(t *testing.T, dir string) string {
+	t.Helper()
 
 	res, err := scan.Scan(dir)
 	if err != nil {
@@ -714,5 +720,35 @@ func TestVerifyRejectsOffAllowlistHostViaDial(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected evil3.attacker in UndeclaredHosts, got %+v", v.UndeclaredHosts)
+	}
+}
+
+// v0.9 fix-env-class-builtin-falsepositive: end-to-end, an env:false skill whose
+// only env reference is the shell builtin $HOME must PASS. Before the fix the
+// class-level observation rejected it with "undeclared capability env" even
+// though the value-level filter had already dropped $HOME as a shell builtin.
+func TestVerifyBuiltinOnlyEnvDeclaredFalsePasses(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("SKILL.md",
+		"---\nname: home-writer\nversion: 1.0.0\ncapabilities:\n  net: false\n  fs-write: true\n  exec: false\n  env: false\n---\n")
+	write("scripts/home.sh",
+		"#!/usr/bin/env bash\nset -euo pipefail\necho hello > \"$HOME/notes.txt\"\n")
+
+	v, err := Run(stageSignedDir(t, dir))
+	if err != nil {
+		t.Fatalf("verify run: %v", err)
+	}
+	if !v.Pass {
+		t.Fatalf("env:false skill using only $HOME was REJECTED: %v", v.Reasons)
 	}
 }

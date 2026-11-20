@@ -186,6 +186,18 @@ var signatures = []signature{
 	{CapEnv, regexp.MustCompile(`\$\{?[A-Z_][A-Z0-9_]*\}?`)}, // $VAR / ${VAR} in shell
 }
 
+// shellOutRedirectRe matches a shell OUTPUT redirect to a file — `> path`,
+// `>> path`, `>| path`, with an optional fd/& prefix (`2>`, `&>`) — while
+// excluding fd duplication (`2>&1`, `>&2`) and comparisons (`>=`, `!>`).
+// The two table signatures above cover only an absolute (`> /x`) and a
+// $VAR-rooted (`> "$HOME/x"`) target, so a relative (`> notes.txt`) or
+// home-relative (`>> ~/.bashrc`) redirect recorded ZERO fs-write and a skill
+// declaring fs-write:false could write and verify green (v0.9,
+// fix-fs-write-relative-redirect). It is applied only in shell context (see
+// shellSource/shellFenceInfo), so `if score > obj.max:` in a .py/.go file is
+// never mistaken for a write.
+var shellOutRedirectRe = regexp.MustCompile(`(?:^|[^<>=!])(?:&|\d)?>>?\|?\s*['"]?[~./A-Za-z0-9_$-][^\s'"|;&()<>]*`)
+
 // hostRe extracts hostnames from URLs to enrich network evidence.
 var hostRe = regexp.MustCompile(`(?i)https?://([a-z0-9.\-]+)`)
 
@@ -444,12 +456,23 @@ func (r *Result) scanFile(path, rel string) error {
 	inFrontmatter := false
 	frontmatterDone := false
 	inCodeFence := false
-	fenceMarker := "" // the delimiter that opened the open fence ("```" or "~~~")
+	fenceMarker := ""   // the delimiter that opened the open fence ("```" or "~~~")
+	fenceShell := false // whether the open fence's info string names a shell
+	shellCtx := false   // whether this file is shell source (set on line 1)
 
 	for sc.Scan() {
 		lineNo++
 		line := sc.Text()
 		trimmed := strings.TrimSpace(line)
+
+		// Shell-vs-code classification comes from the real file kind. A .sh /
+		// .bash / .zsh file is shell; an extensionless file is shell only with a
+		// shell shebang; every other extension is a code language where a bare
+		// leading word is an identifier, not a command. Markdown is classified
+		// per fence below.
+		if lineNo == 1 {
+			shellCtx = shellSource(rel, line)
+		}
 
 		if isMarkdown {
 			// Detect and skip a leading YAML frontmatter block.
@@ -478,16 +501,30 @@ func (r *Result) scanFile(path, rel string) error {
 				if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 					inCodeFence = true
 					fenceMarker = trimmed[:3]
+					fenceShell = shellFenceInfo(trimmed[3:])
 					continue
 				}
-			} else if strings.HasPrefix(trimmed, fenceMarker) {
+			} else if isFenceClose(trimmed, fenceMarker) {
+				// A closing fence may be followed only by spaces/tabs. A line that
+				// starts with the same marker plus an info string ("```bash") is
+				// CONTENT per CommonMark; treating it as a close hid every code
+				// line after it from the scanner (v0.9, fix-markdown-fence-info-close).
 				inCodeFence = false
 				fenceMarker = ""
+				fenceShell = false
 				continue
 			}
 			if !inCodeFence {
 				continue
 			}
+		}
+
+		// Code inside a markdown fence is shell source only when the fence names
+		// a shell language; an unlabelled fence stays code-neutral, so a Python
+		// snippet cannot turn `a | b` into commands.
+		ctx := shellCtx
+		if isMarkdown {
+			ctx = fenceShell
 		}
 
 		// Skip obvious full-line comments to cut false positives, but keep
@@ -508,9 +545,20 @@ func (r *Result) scanFile(path, rel string) error {
 			snippet = snippet[:117] + "..."
 		}
 
+		fsWriteBefore := len(r.Observed[CapFSWrite])
 		for _, sig := range signatures {
 			loc := sig.re.FindStringIndex(line)
 			if loc == nil {
+				continue
+			}
+			// A shell line whose only $VAR tokens are shell builtins (HOME, PATH,
+			// ...) reads no author-declared secret. observedEnv below drops those
+			// names from the value-level set, so recording the coarse class here
+			// would make the two layers disagree and reject an honest env:false
+			// skill that merely uses $HOME (v0.9, fix-env-class-builtin-falsepositive).
+			// A line with no captured name (bare os.environ/getenv) is NOT
+			// suppressed: it is a real env access whose name is unresolvable.
+			if sig.cap == CapEnv && onlyBuiltinEnvReads(line) {
 				continue
 			}
 			r.Observed[sig.cap] = append(r.Observed[sig.cap], Evidence{
@@ -549,13 +597,27 @@ func (r *Result) scanFile(path, rel string) error {
 			}
 		}
 
+		// A shell output redirect to a relative or home-relative path is a real
+		// fs-write the table's absolute/$VAR signatures never see. Only shell
+		// context is checked (a comparison in Python/Go is not a redirect), and
+		// evidence is added only when no table signature already fired for this
+		// line, so `> "/tmp/x"` is reported once.
+		if ctx && len(r.Observed[CapFSWrite]) == fsWriteBefore && shellOutRedirectRe.MatchString(line) {
+			r.Observed[CapFSWrite] = append(r.Observed[CapFSWrite], Evidence{
+				Capability: CapFSWrite,
+				File:       rel,
+				Line:       lineNo,
+				Snippet:    snippet,
+			})
+		}
+
 		// Exec command extraction runs once per line, independent of which class
 		// signatures fired: a bare `curl ... | sh` shell-out fires only the CapNet
 		// signature, yet it IS an exec of `curl` and `sh`. Recording it here (and
 		// registering CapExec evidence when a command is found) is what lets the
 		// value-level exec allowlist diff catch the classic `curl | sh` trick that
 		// the coarse exec signatures alone would miss. (v0.3, m7)
-		for _, cmd := range execNamesIn(line, isMarkdown) {
+		for _, cmd := range execNamesIn(line, ctx) {
 			before := len(r.observedExecHits)
 			r.observedExec(cmd, rel, lineNo)
 			// Only register class-level exec evidence when the hit was actually
@@ -624,9 +686,10 @@ var shellExecBuiltins = map[string]bool{
 // command NAME is always the leading token of the invocation, basename-normalized.
 //
 // For Markdown we only ever reach here on lines already confirmed to be inside a
-// fenced code block (scanFile gates that), so isMarkdown only tunes the bare-line
-// heuristic: prose-y fenced blocks still flow through the same extractor.
-func execNamesIn(line string, isMarkdown bool) []string {
+// fenced code block (scanFile gates that), and shellCtx says whether that fence
+// names a shell language; code languages use `|` for operators and URLs in
+// literals, so the bare-line heuristic must not tag their identifiers.
+func execNamesIn(line string, shellCtx bool) []string {
 	var out []string
 	add := func(n string) {
 		n = normalizeCommand(n)
@@ -648,15 +711,21 @@ func execNamesIn(line string, isMarkdown bool) []string {
 		}
 	}
 	// 3) piped commands: every `| cmd` records the downstream command (catches `... | sh`).
+	//    In a code language `a | b` is bitwise-or / a type union, not a pipeline,
+	//    so the downstream word is taken only in shell source — or, for an
+	//    unlabelled markdown fence, when it is a known external binary (`| sh`,
+	//    `| python3`), which keeps the classic `curl ... | sh` example counted.
 	for _, m := range pipedCmdRe.FindAllStringSubmatch(line, -1) {
-		add(m[1])
+		if cmd := normalizeCommand(m[1]); shellCtx || commonShellBins[cmd] {
+			add(cmd)
+		}
 	}
 	// 4) bare shell command line: the leading command word of the line itself. Only
 	//    apply to lines that look like shell commands (avoid matching code in .py/.go
 	//    where the leading token is a language identifier, not a shell-out — those are
 	//    covered by the API form above). A line that already produced an API/subst hit
 	//    still benefits from this for the `curl ... | sh` left-hand side.
-	if loc := shellCmdLeadRe.FindStringSubmatch(line); loc != nil && looksShelly(line) {
+	if loc := shellCmdLeadRe.FindStringSubmatch(line); loc != nil && looksShelly(line, shellCtx) {
 		add(loc[1])
 	}
 	return out
@@ -699,20 +768,74 @@ func NormalizeCommandName(c string) string {
 	return normalizeCommand(leadingToken(strings.TrimSpace(c)))
 }
 
-// looksShelly is a conservative guard for the bare-leading-command heuristic: it
-// fires only for lines that read like shell command invocations (a known external
-// binary at the head, or a pipe/redirect present), so we don't mis-tag a Python/Go
-// identifier line. The API-style and command-substitution forms remain language-agnostic.
-func looksShelly(line string) bool {
+// looksShelly is a conservative guard for the bare-leading-command heuristic: a
+// known external binary at the head always marks the line as a shell invocation.
+// A line that merely CONTAINS a pipe or a URL marks it too, but ONLY in shell
+// source. In Python/Go/JS those characters are bitwise-or, union, boolean
+// operators or URL string literals whose leading word is a language identifier
+// (`flags = a | b`, `url = "https://..."`); recording those as commands
+// false-rejected honest skills that declare a finite exec allowlist (v0.9,
+// fix-exec-code-line-phantom-command). The API-style and command-substitution
+// forms remain language-agnostic.
+func looksShelly(line string, shellCtx bool) bool {
 	t := strings.TrimSpace(line)
 	if t == "" || strings.HasPrefix(t, "#") {
 		return false
 	}
-	if strings.ContainsAny(t, "|") || hostRe.MatchString(t) {
+	lead := normalizeCommand(leadingToken(t))
+	if commonShellBins[lead] {
 		return true
 	}
-	lead := normalizeCommand(leadingToken(t))
-	return commonShellBins[lead]
+	if !shellCtx {
+		return false
+	}
+	return strings.ContainsAny(t, "|") || hostRe.MatchString(t)
+}
+
+// shellSource reports whether rel is shell source, where a bare leading word is
+// a command and `>` is an output redirect. Explicit shell extensions qualify; an
+// extensionless file qualifies only when its first line carries a shell shebang,
+// so a LICENSE or other data file is not treated as shell. Markdown is
+// classified per fence by shellFenceInfo instead.
+func shellSource(rel, firstLine string) bool {
+	switch strings.ToLower(filepath.Ext(rel)) {
+	case ".sh", ".bash", ".zsh":
+		return true
+	case "":
+		t := strings.TrimSpace(firstLine)
+		return strings.HasPrefix(t, "#!") && strings.Contains(t, "sh")
+	}
+	return false
+}
+
+// shellFenceInfo reports whether a markdown fence's info string names a shell,
+// so code inside it is treated as shell source. Only the first word matters;
+// "{.bash}"-style attributes are accepted. An empty info string is NOT shell:
+// treating every unlabelled fence as shell would turn a Python snippet's `a | b`
+// back into phantom commands.
+func shellFenceInfo(info string) bool {
+	fields := strings.Fields(strings.TrimSpace(info))
+	if len(fields) == 0 {
+		return false
+	}
+	switch strings.ToLower(strings.Trim(fields[0], "{}.`,")) {
+	case "sh", "bash", "zsh", "shell", "console", "shell-session", "sh-session":
+		return true
+	}
+	return false
+}
+
+// isFenceClose reports whether line closes the fence opened by marker. Per
+// CommonMark a closing fence is a run of the same delimiter at least as long as
+// the opener, followed only by spaces or tabs; "```bash" is CONTENT, not a
+// close. Ending the block there hid every later code line from the scanner
+// (v0.9, fix-markdown-fence-info-close).
+func isFenceClose(line, marker string) bool {
+	if !strings.HasPrefix(line, marker) {
+		return false
+	}
+	rest := strings.TrimLeft(line[len(marker):], string(marker[0]))
+	return strings.TrimSpace(rest) == ""
 }
 
 // commonShellBins is a small allowlist of external binaries that, when leading a
@@ -748,6 +871,27 @@ func envNamesIn(line string) []string {
 		}
 	}
 	return out
+}
+
+// onlyBuiltinEnvReads reports whether every env-var name captured on the line is
+// a shell-provided variable (HOME, PATH, ...). Such a line reads no
+// author-declared secret, and observedEnv already drops these names from the
+// value-level set, so the coarse env class must not be recorded either — the two
+// layers have to agree or an env:false skill that merely uses $HOME is rejected
+// (v0.9, fix-env-class-builtin-falsepositive). A line with NO captured name is
+// not suppressed: a bare os.environ/getenv reference is a real env access whose
+// variable name cannot be resolved statically.
+func onlyBuiltinEnvReads(line string) bool {
+	names := envNamesIn(line)
+	if len(names) == 0 {
+		return false
+	}
+	for _, n := range names {
+		if !shellBuiltinEnv[n] {
+			return false
+		}
+	}
+	return true
 }
 
 func containsStr(s []string, v string) bool {

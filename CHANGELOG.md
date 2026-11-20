@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-21
+
+Closes four verified scanner defects found by post-ship review of v0.8.0: two
+false rejections of honest skills and two silent under-detections.
+
+### Fixed
+
+- **Shell builtins are not an undeclared env capability.** The scanner recorded
+  the coarse `env` class for any `$VAR` line before the value-level filter ran,
+  while that filter already dropped `$HOME`, `$PATH`, `$PWD` and the other
+  `shellBuiltinEnv` names. An `env: false` skill whose only read was `$HOME`
+  was therefore REJECTED. The class is now recorded only when at least one
+  captured name is not a shell builtin (a bare `os.environ`/`getenv` reference
+  still counts, because its variable name is unresolvable statically).
+- **Code operators and URL literals no longer produce phantom exec commands.**
+  The bare-command heuristic treated any line containing `|` or a URL as a shell
+  invocation, so `flags = a | b` and `url = "https://..."` in Python/JS recorded
+  `flags`/`url` (or the identifier after the pipe) as external commands and
+  false-rejected a finite `commands` allowlist. Bare-command and pipeline
+  extraction now runs in shell source (`.sh`/`.bash`/`.zsh`, a shell shebang, or
+  a shell-labelled markdown fence) or when the word is a known external binary.
+- **A markdown fence closes only on a bare delimiter.** The close test accepted
+  any line beginning with the opening marker, so a line that starts with the
+  fence marker plus a language name, inside the block, ended it early and every
+  later code line was skipped as prose — a net or exec call after it could pass
+  an undeclared-capability check. The closer must now be the same delimiter
+  followed only by whitespace, per CommonMark.
+- **Relative and home-relative shell redirects are fs-write.** Only absolute
+  (`> /tmp/x`) and `$VAR`-rooted (`> "$HOME/x"`) redirects fired, so
+  `echo hi > notes.txt` and `echo x >> ~/.bashrc` recorded no fs-write and an
+  `fs-write: false` skill verified green. Output redirects to a path token are
+  now observed in shell context; fd duplication (`2>&1`) and comparisons are
+  excluded.
+
+### Changed
+
+- The recorded demo (`docs/demo-results.json`) and both README demo blocks are
+  regenerated from the v0.9.0 binary. The poisoned fixture now reports `exec`,
+  `fs-write` and `net`; its `$HOME` line no longer reports `env`.
+- Every version surface is bumped in lockstep (VERSION, README badges,
+  CHANGELOG, `web/site.json` content versions and footer, and the demo record).
+
 ## [0.8.0] - 2026-10-18
 
 Closes two verified gaps found by post-ship review of v0.7.0.
